@@ -1,0 +1,1495 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPPQuest — Black IA</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#020804;--bg2:#061008;--bg3:#0c1a0c;
+  --border:#0f2a0f;--border2:#1a4a1a;--border3:#2a7a2a;
+  --green:#00ff41;--green2:#00cc33;--green3:#003a10;--green4:#00ff4120;
+  --amber:#f0b73a;--amber2:#f0b73a20;--red:#ff3333;--red2:#ff333325;
+  --blue:#41ffcc;--blue2:#41ffcc20;--purple:#bf7fff;
+  --muted:#2a5a2a;--text:#c0ffc0;--text2:#6aaa6a;--text3:#2a5a2a;
+  --font:'Share Tech Mono',monospace;--font2:'Rajdhani',sans-serif;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;font-size:16px;}
+.screen{display:none;min-height:100vh;flex-direction:column;}
+.screen.active{display:flex;}
+
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideInR{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+@keyframes slideOutL{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(-40px)}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-10px)}75%{transform:translateX(10px)}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+@keyframes scanline{0%{top:-5%}100%{top:105%}}
+@keyframes pulseBorder{0%,100%{border-color:var(--border2)}50%{border-color:var(--green2)}}
+@keyframes flicker{0%,94%,100%{opacity:1}95%{opacity:.5}}
+@keyframes hackIn{from{opacity:0;letter-spacing:20px}to{opacity:1;letter-spacing:3px}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes zoomIn{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
+@keyframes badgePop{0%{transform:scale(0) rotate(-10deg);opacity:0}60%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+@keyframes rankUp{0%{transform:scale(1)}50%{transform:scale(1.12)}100%{transform:scale(1)}}
+@keyframes toastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+@keyframes toastOut{from{opacity:1}to{opacity:0;transform:translateX(40px)}}
+@keyframes matFall{from{opacity:1;top:0}to{opacity:0;top:100%}}
+
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,255,65,.008) 3px,rgba(0,255,65,.008) 4px);pointer-events:none;z-index:9999;animation:flicker 10s infinite;}
+.scanline{position:fixed;left:0;width:100%;height:2px;background:linear-gradient(transparent,rgba(0,255,65,.1),transparent);z-index:9998;animation:scanline 6s linear infinite;pointer-events:none;}
+canvas#mx{position:fixed;inset:0;z-index:0;opacity:.05;}
+
+/* ── TOAST ── */
+#tc{position:fixed;top:1.5rem;right:1.5rem;z-index:9997;display:flex;flex-direction:column;gap:.75rem;pointer-events:none;}
+.toast{background:var(--bg2);border:1px solid var(--amber);padding:.85rem 1.25rem;display:flex;align-items:center;gap:.85rem;animation:toastIn .4s ease forwards;min-width:260px;}
+.toast.out{animation:toastOut .3s ease forwards;}
+.t-ico{font-size:28px;flex-shrink:0;}
+.t-ttl{font-family:var(--font2);font-size:15px;font-weight:600;color:var(--amber);}
+.t-sub{font-size:11px;color:var(--text2);margin-top:2px;letter-spacing:1px;}
+
+/* ── LOADING ── */
+#lov{position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1rem;}
+#lov.hidden{display:none;}
+.lspin{width:32px;height:32px;border:2px solid var(--border2);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite;}
+.ltxt{font-size:11px;color:var(--text2);letter-spacing:3px;}
+
+/* ── BOOT ── */
+#hboot{position:fixed;inset:0;background:#000;z-index:998;display:none;overflow:hidden;}
+#hboot.active{display:flex;}
+#bcanvas{position:absolute;inset:0;width:100%;height:100%;}
+.bc-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2;}
+.bc-logo{font-family:var(--font2);font-size:90px;font-weight:700;color:var(--green);letter-spacing:8px;text-shadow:0 0 50px #00ff41;opacity:0;animation:zoomIn .6s ease 1.6s forwards;}
+.bc-sub{font-size:14px;color:var(--green2);letter-spacing:6px;margin-top:.5rem;opacity:0;animation:fadeIn .5s ease 2.3s forwards;}
+.blog{position:absolute;bottom:2rem;left:2rem;right:2rem;font-size:13px;color:var(--green2);opacity:.8;z-index:2;line-height:2.2;}
+.blog-line{opacity:0;}
+
+/* ── LOGIN SELECTOR ── */
+#login-select{align-items:center;justify-content:center;padding:3rem 2rem;position:relative;}
+.ls-wrap{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;max-width:560px;width:100%;margin:auto;}
+.ls-logo{font-family:var(--font2);font-size:72px;font-weight:700;color:var(--green);letter-spacing:6px;text-shadow:0 0 30px #00ff4155;animation:hackIn .8s ease both;margin-bottom:6px;}
+.ls-ver{font-size:11px;letter-spacing:5px;color:var(--muted);margin-bottom:2.5rem;}
+.ls-title{font-size:13px;color:var(--text2);letter-spacing:3px;text-transform:uppercase;margin-bottom:1.5rem;}
+.ls-options{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;width:100%;}
+.ls-card{background:var(--bg2);border:1px solid var(--border2);padding:2rem 1.5rem;text-align:center;cursor:pointer;transition:all .2s;position:relative;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);}
+.ls-card:hover{border-color:var(--green2);background:var(--bg3);}
+.ls-card.teacher:hover{border-color:var(--amber);}
+.ls-card-ic{font-size:44px;margin-bottom:.75rem;display:block;}
+.ls-card-name{font-family:var(--font2);font-size:20px;font-weight:700;color:var(--text);margin-bottom:.4rem;}
+.ls-card-sub{font-size:12px;color:var(--muted);}
+.fbconn{font-size:11px;text-align:center;margin-top:1.5rem;letter-spacing:1px;}
+.fbconn.on{color:var(--green2);}.fbconn.off{color:var(--red);}
+
+/* ── LOGIN FORM ── */
+#login-student,#login-teacher{align-items:center;justify-content:center;padding:3rem 2rem;position:relative;}
+.lf-wrap{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;max-width:500px;width:100%;margin:auto;}
+.lf-back{font-family:var(--font);font-size:12px;background:none;border:1px solid var(--border2);color:var(--muted);padding:6px 14px;cursor:pointer;letter-spacing:2px;margin-bottom:1.5rem;align-self:flex-start;transition:all .12s;}
+.lf-back:hover{border-color:var(--border3);color:var(--text2);}
+.lf-logo{font-family:var(--font2);font-size:52px;font-weight:700;letter-spacing:6px;line-height:.9;text-shadow:0 0 20px currentColor;margin-bottom:.4rem;}
+.lf-logo.student{color:var(--blue);}
+.lf-logo.teacher{color:var(--amber);}
+.lf-role{font-size:11px;letter-spacing:5px;color:var(--muted);margin-bottom:2rem;}
+.lf-box{width:100%;background:var(--bg2);padding:2.25rem 2.5rem;}
+.lf-box.student{border:1px solid #1a4a7a;}
+.lf-box.teacher{border:1px solid #7a6a00;}
+.lf-hdr{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:.75rem;margin-bottom:1.75rem;}
+.lf-hdr.student span{color:var(--blue);}
+.lf-hdr.teacher span{color:var(--amber);}
+.lff{margin-bottom:1.25rem;}
+.lfl{font-size:12px;color:var(--text2);letter-spacing:2px;text-transform:uppercase;margin-bottom:.4rem;display:block;}
+.lfi{width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--green);font-family:var(--font);font-size:16px;padding:13px 16px;outline:none;transition:border-color .15s;letter-spacing:1px;}
+.lfi:focus{border-color:var(--green2);}
+.lfi.student:focus{border-color:var(--blue);}
+.lfi.teacher:focus{border-color:var(--amber);}
+.lfi.ei{border-color:var(--red)!important;}
+.lerr{font-size:13px;color:var(--red);margin-top:.5rem;display:none;padding:7px 12px;border-left:2px solid var(--red);}
+.lerr.show{display:block;}
+.lstat{font-size:13px;color:var(--blue);margin-top:.5rem;display:none;padding:7px 12px;border-left:2px solid var(--blue);}
+.lstat.show{display:block;}
+.btnlogin{width:100%;font-family:var(--font);font-size:16px;letter-spacing:4px;border:1px solid;padding:16px;cursor:pointer;transition:all .12s;text-transform:uppercase;margin-top:.5rem;display:flex;align-items:center;justify-content:center;}
+.btnlogin::before{content:'> ';}
+.btnlogin.student{background:var(--blue2);color:var(--blue);border-color:var(--blue);}
+.btnlogin.student:hover:not(:disabled){background:var(--blue);color:#000;}
+.btnlogin.teacher{background:var(--amber2);color:var(--amber);border-color:var(--amber);}
+.btnlogin.teacher:hover:not(:disabled){background:var(--amber);color:#000;}
+.btnlogin:disabled{opacity:.4;cursor:default;}
+.lhint{font-size:12px;color:var(--text3);text-align:center;margin-top:1.25rem;line-height:1.9;}
+.lhint span{color:var(--text2);}
+
+/* ── TOPBAR ── */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:.9rem 2rem;border-bottom:1px solid var(--border2);background:var(--bg2);position:sticky;top:0;z-index:10;}
+.tbl{display:flex;align-items:center;gap:1.25rem;}
+.tblogo{font-family:var(--font2);font-size:22px;font-weight:700;color:var(--green);letter-spacing:3px;cursor:pointer;}
+.tblogo span{color:var(--text2);}
+.tbuser{font-size:13px;color:var(--text2);border:1px solid var(--border2);padding:5px 13px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tbrank{font-size:11px;padding:4px 11px;letter-spacing:2px;border:1px solid;}
+.sdot{width:8px;height:8px;border-radius:50%;background:var(--green2);}
+.sdot.sy{background:var(--amber);animation:blink .5s step-end infinite;}
+.sdot.se{background:var(--red);}
+.hud{display:flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border2);padding:7px 15px;}
+.hud .lbl{color:var(--muted);font-size:11px;letter-spacing:1px;}
+.hud .val{color:var(--green);font-size:16px;}
+.hw{display:flex;gap:4px;}
+.ht{font-size:18px;transition:all .3s;}.ht.lost{opacity:.12;transform:scale(.65);}
+.btnlo{font-size:11px;font-family:var(--font);background:none;border:1px solid var(--border);color:var(--muted);padding:5px 12px;cursor:pointer;letter-spacing:1px;transition:all .12s;}
+.btnlo:hover{border-color:var(--red);color:var(--red);}
+.btnbg{font-size:11px;font-family:var(--font);background:none;border:1px solid var(--amber);color:var(--amber);padding:5px 12px;cursor:pointer;letter-spacing:1px;transition:all .12s;}
+.btnbg:hover{background:var(--amber2);}
+
+/* ── MAP ── */
+#mapscreen{overflow-y:auto;}
+.mapbody{padding:2rem;max-width:900px;margin:0 auto;}
+.chtag{font-size:12px;letter-spacing:4px;text-transform:uppercase;color:var(--muted);margin-bottom:.75rem;display:flex;align-items:center;gap:10px;}
+.chtag::after{content:'';flex:1;height:1px;background:var(--border);}
+.chcard{background:var(--bg2);border:1px solid var(--border2);border-left:3px solid;padding:1.4rem 1.75rem;margin-bottom:1.75rem;}
+.chcard h3{font-family:var(--font2);font-size:22px;font-weight:600;color:var(--text);margin-bottom:4px;}
+.chcard p{font-size:13px;color:var(--text2);}
+.lg{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:.9rem;margin-bottom:1.75rem;}
+.ln{background:var(--bg2);border:1px solid var(--border);padding:1.1rem;cursor:pointer;transition:all .15s;text-align:center;position:relative;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);}
+.ln:hover:not(.locked){border-color:var(--border3);background:var(--bg3);}
+.ln.locked{opacity:.3;cursor:not-allowed;}
+.ln.done{border-color:var(--green3);background:#001408;}
+.ln.unlocked{animation:pulseBorder 2.5s infinite;}
+.ln-ic{font-size:28px;margin-bottom:7px;}.ln-nm{font-family:var(--font2);font-size:14px;font-weight:600;color:var(--text);}.ln-xp{font-size:11px;color:var(--muted);margin-top:4px;}
+.ln-bd{position:absolute;top:7px;right:9px;font-size:12px;}
+.ln-rv{position:absolute;bottom:5px;right:6px;font-size:10px;font-family:var(--font);background:none;border:1px solid var(--border2);color:var(--muted);padding:2px 6px;cursor:pointer;transition:all .12s;}
+.ln-rv:hover{border-color:var(--blue);color:var(--blue);}
+.sdiv{display:flex;align-items:center;gap:1rem;margin:.75rem 0;}
+.sdiv-l{flex:1;height:1px;background:var(--border);}
+.sdiv-t{font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;}
+.xpbox{background:var(--bg2);border:1px solid var(--border2);padding:1.1rem 1.75rem;margin-bottom:1.25rem;}
+.xpbl{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:7px;}
+.xpbt{height:9px;background:var(--bg3);border:1px solid var(--border);}
+.xpbf{height:100%;background:var(--amber);transition:width .8s ease;}
+.rnxtl{font-size:13px;color:var(--green2);margin-top:6px;letter-spacing:2px;}
+.swarn{background:var(--bg2);border:1px solid var(--amber);padding:.8rem 1.5rem;margin-bottom:1.25rem;font-size:13px;color:var(--amber);display:none;align-items:center;gap:.75rem;}
+.swarn.show{display:flex;}
+
+/* ── BADGES ── */
+#badgesscreen{overflow-y:auto;}
+.bgbody{padding:2rem;max-width:860px;margin:0 auto;}
+.bgtitle{font-family:var(--font2);font-size:28px;font-weight:700;color:var(--amber);letter-spacing:3px;margin-bottom:.4rem;}
+.bgsub{font-size:13px;color:var(--text2);margin-bottom:2rem;}
+.bgprog{background:var(--bg2);border:1px solid var(--border2);padding:1rem 1.5rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:1.5rem;}
+.bgpn{font-family:var(--font2);font-size:36px;font-weight:700;color:var(--amber);}
+.bgl{font-size:12px;color:var(--muted);letter-spacing:2px;}
+.bgbw{flex:1;}
+.bgbt{height:8px;background:var(--bg3);border:1px solid var(--border);margin-top:6px;}
+.bgbf{height:100%;background:var(--amber);transition:width .8s ease;}
+.bgcat{font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:1rem;margin-top:.5rem;display:flex;align-items:center;gap:8px;}
+.bgcat::after{content:'';flex:1;height:1px;background:var(--border);}
+.bggrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:1rem;margin-bottom:1.5rem;}
+.bgcard{background:var(--bg2);border:1px solid var(--border);padding:1.2rem;text-align:center;transition:all .2s;position:relative;}
+.bgcard.earned{border-color:var(--amber);background:#0d0a02;}
+.bgcard.locked-b{opacity:.3;}
+.bgi{font-size:38px;margin-bottom:.6rem;display:block;}
+.bgn{font-family:var(--font2);font-size:15px;font-weight:600;color:var(--text);margin-bottom:.3rem;}
+.bgd{font-size:12px;color:var(--text2);line-height:1.6;}
+.bget{position:absolute;top:7px;right:7px;font-size:10px;color:var(--amber);border:1px solid var(--amber);padding:2px 6px;letter-spacing:1px;}
+
+/* ── LESSON ── */
+#lesson{max-width:880px;margin:0 auto;width:100%;}
+.ltopbar{display:flex;align-items:center;gap:1rem;padding:.9rem 2rem;border-bottom:1px solid var(--border2);background:var(--bg2);}
+.btnback{font-family:var(--font);font-size:13px;background:var(--bg3);border:1px solid var(--border2);color:var(--text2);padding:9px 20px;cursor:pointer;letter-spacing:2px;transition:all .12s;}
+.btnback:hover{border-color:var(--border3);color:var(--text);}
+.pw{flex:1;height:9px;background:var(--bg3);border:1px solid var(--border);}
+.pf{height:100%;background:var(--green2);transition:width .5s ease;}
+.ptxt{font-size:13px;color:var(--muted);white-space:nowrap;min-width:44px;text-align:right;}
+.lbar{display:flex;gap:4px;margin-left:.5rem;}
+.tbar{height:5px;background:var(--green3);}
+.tf{height:100%;background:var(--green);transition:width .1s linear;}
+.lbody{padding:2rem;flex:1;}
+.qtlbl{font-size:12px;letter-spacing:4px;text-transform:uppercase;color:var(--blue);margin-bottom:.8rem;display:flex;align-items:center;gap:10px;}
+.qtlbl::after{content:'';flex:1;height:1px;background:var(--blue2);}
+.qtxt{font-family:var(--font2);font-size:24px;font-weight:600;color:var(--text);line-height:1.4;margin-bottom:1.4rem;}
+.kbdhint{font-size:13px;color:var(--text3);margin-bottom:1.1rem;padding:8px 14px;border-left:2px solid var(--border2);background:var(--bg2);display:flex;justify-content:space-between;align-items:center;}
+.kbdhint strong{color:var(--text2);}
+.tnum{font-size:14px;color:var(--amber);}.tnum.urg{color:var(--red);animation:blink .5s step-end infinite;}
+.cdisplay{background:var(--bg3);border:1px solid var(--border2);font-size:14px;line-height:2.1;margin-bottom:1.3rem;position:relative;overflow-x:auto;}
+.cdisplay .cdtag{position:absolute;top:0;right:0;background:var(--border2);padding:3px 13px;font-size:11px;color:var(--muted);letter-spacing:2px;}
+.cdisplay pre{padding:1.3rem 1.5rem;white-space:pre-wrap;font-family:var(--font);}
+.kw{color:#ff7055}.ty{color:var(--blue)}.fn{color:var(--purple)}.st{color:var(--amber)}.co{color:var(--muted)}.nu{color:#79d4ff}
+.choices{display:grid;gap:11px;}
+.ch{background:var(--bg3);border:1px solid var(--border);color:var(--text2);text-align:left;cursor:pointer;font-family:var(--font);font-size:16px;padding:16px 22px;transition:border-color .1s,background .1s,color .1s;display:flex;align-items:center;gap:15px;width:100%;clip-path:polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);}
+.ch:hover:not(:disabled){border-color:var(--border3);color:var(--text);background:var(--bg2);}
+.ch.sel{border-color:var(--green)!important;color:var(--green)!important;background:var(--green4)!important;}
+.ch.correct{border-color:var(--green2)!important;background:#001a08!important;color:var(--green)!important;}
+.ch.wrong{border-color:var(--red)!important;background:var(--red2)!important;color:var(--red)!important;}
+.ch:disabled{cursor:default;}
+.chk{min-width:30px;height:30px;border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--muted);flex-shrink:0;font-weight:600;transition:all .1s;}
+.ch.sel .chk{border-color:var(--green);color:var(--green);background:var(--green3);}
+.ch.correct .chk{border-color:var(--green2);color:var(--green);}
+.ch.wrong .chk{border-color:var(--red);color:var(--red);}
+.bgchs{display:grid;gap:11px;}
+.bgch{background:var(--bg3);border:1px solid var(--border);color:var(--text2);text-align:left;cursor:pointer;font-family:var(--font);font-size:16px;padding:15px 22px;transition:all .12s;width:100%;clip-path:polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);}
+.bgch:hover:not(:disabled){border-color:var(--border3);color:var(--text);}
+.bgch.sel{border-color:var(--amber)!important;background:#1a0e00!important;color:var(--amber)!important;}
+.bgch.correct{border-color:var(--green2)!important;background:#001a08!important;color:var(--green)!important;}
+.bgch.wrong{border-color:var(--red)!important;background:var(--red2)!important;color:var(--red)!important;}
+.bgch:disabled{cursor:default;}
+/* DRAG */
+.cskel{background:var(--bg3);border:1px solid var(--border2);padding:1.2rem 1.5rem;font-size:14px;line-height:2.3;margin-bottom:.75rem;}
+.cline{display:flex;align-items:center;gap:8px;line-height:2.4;}
+.lnum-d{color:var(--muted);min-width:20px;font-size:12px;}
+.bslot{display:inline-flex;align-items:center;min-width:120px;min-height:32px;background:var(--bg2);border:1px dashed var(--border2);padding:2px 8px;vertical-align:middle;transition:all .15s;}
+.bslot.dov{border-color:var(--green2);background:var(--green4);}
+.bslot.filled{background:var(--blue2);border-color:var(--blue);}
+.bslot.cslot{background:#001808;border-color:var(--green2);}
+.bslot.wslot{background:var(--red2);border-color:var(--red);}
+.bchips{display:flex;flex-wrap:wrap;gap:8px;margin-top:.5rem;}
+.dchip{background:var(--bg3);border:1px solid var(--border2);color:var(--text2);font-family:var(--font);font-size:13px;padding:7px 14px;cursor:grab;user-select:none;transition:all .12s;}
+.dchip:hover{border-color:var(--border3);color:var(--text);}
+.dchip.dragging{opacity:.4;cursor:grabbing;}
+.dchip.placed{opacity:.25;cursor:default;pointer-events:none;}
+.pchip{background:var(--blue2);border:1px solid var(--blue);color:var(--blue);font-family:var(--font);font-size:13px;padding:7px 14px;cursor:pointer;}
+.pchip:hover{opacity:.7;}
+.pchip.locked{cursor:default;pointer-events:none;}
+.dph{font-size:12px;color:var(--text3);font-style:italic;pointer-events:none;}
+/* CODE */
+.ewrap{background:var(--bg3);border:1px solid var(--border2);margin-bottom:1rem;}
+.ehdr{background:var(--border2);padding:.4rem 1.2rem;font-size:12px;color:var(--muted);letter-spacing:2px;display:flex;justify-content:space-between;}
+.ehdr span{color:var(--text2);}
+.einner{display:flex;}
+.lnums{width:44px;padding:1.2rem 0;background:var(--bg2);border-right:1px solid var(--border);text-align:right;font-size:13px;color:var(--muted);flex-shrink:0;overflow:hidden;}
+.lnums span{display:block;padding-right:10px;line-height:1.75em;}
+.ceditor{flex:1;padding:1.2rem 1rem;min-height:220px;background:transparent;border:none;color:var(--green);font-family:var(--font);font-size:14px;outline:none;resize:vertical;line-height:1.75em;white-space:pre;overflow-x:auto;}
+.cbtn{width:100%;font-family:var(--font);font-size:13px;letter-spacing:3px;background:var(--bg3);color:var(--amber);border:1px solid var(--amber);padding:11px;cursor:pointer;transition:all .12s;text-transform:uppercase;}
+.cbtn:hover{background:#1a0e00;}
+.cbtn.running{animation:blink .8s step-end infinite;}
+.cout{background:var(--bg);border:1px solid var(--border);border-top:none;padding:1rem 1.2rem;font-size:13px;color:var(--text2);min-height:60px;line-height:1.8;white-space:pre-wrap;}
+.cout.ok{border-color:var(--green3);color:var(--green);}
+.cout.fail{border-color:#3a0808;color:var(--red);}
+.chint{font-size:13px;color:var(--text3);margin-top:.6rem;padding:7px 13px;border-left:2px solid var(--border2);line-height:1.7;}
+.chint strong{color:var(--text);}
+/* FEEDBACK */
+.fb{display:none;padding:1.2rem 2rem;border-top:1px solid var(--border2);flex-direction:column;gap:9px;}
+.fb.ok-fb{background:#001208;border-color:var(--green3);}
+.fb.err-fb{background:#120004;border-color:#3a0012;}
+.fb.show{display:flex;}
+.fbtop{display:flex;align-items:center;gap:12px;}
+.fblbl{font-family:var(--font2);font-size:19px;font-weight:600;}
+.fblbl.ok{color:var(--green)}.fblbl.err{color:var(--red)}
+.fbxp{margin-left:auto;font-size:14px;color:var(--amber);}
+.fbexpl{font-size:14px;color:var(--text2);line-height:1.7;}
+.fbexpl strong{color:var(--text);}
+.fbmore{font-size:12px;color:var(--blue);cursor:pointer;border:none;background:none;font-family:var(--font);padding:0;letter-spacing:1px;margin-top:2px;}
+.fbmore:hover{color:var(--text);}
+.fbdet{display:none;margin-top:.6rem;background:var(--bg3);border:1px solid var(--border2);padding:.85rem 1.1rem;font-size:13px;color:var(--text2);line-height:1.8;}
+.fbdet.open{display:block;}
+.lfooter{padding:.9rem 2rem;border-top:1px solid var(--border);display:flex;gap:1rem;background:var(--bg2);}
+.btnv,.btnc{flex:1;padding:16px;font-family:var(--font);font-size:16px;letter-spacing:3px;cursor:pointer;border:1px solid;transition:all .12s;text-transform:uppercase;}
+.btnv{background:var(--green3);color:var(--green);border-color:var(--green2);}
+.btnv:disabled{background:var(--bg3);color:var(--text3);border-color:var(--border);cursor:default;}
+.btnv:not(:disabled):hover{background:#005020;}
+.btnc{background:var(--blue2);color:var(--blue);border-color:var(--blue);display:none;}
+.btnc:hover{background:var(--blue);color:#000;}
+
+/* ── HACK COMPLETE ── */
+#hackscreen{align-items:center;justify-content:center;padding:2rem;position:relative;}
+.hkterm{width:100%;max-width:700px;background:var(--bg2);border:1px solid var(--border2);position:relative;z-index:1;}
+.hktbar{background:var(--border2);padding:.55rem 1.3rem;font-size:12px;color:var(--muted);letter-spacing:3px;display:flex;justify-content:space-between;}
+.hkbody{padding:1.5rem;min-height:260px;font-size:14px;line-height:2.3;overflow:hidden;}
+.hl{color:var(--text2);opacity:0;transition:opacity .08s;}.hl.vis{opacity:1;}
+.hl .gg{color:var(--green)}.hl .rr{color:var(--red)}.hl .aa{color:var(--amber)}.hl .bb{color:var(--blue)}
+.hksucc{display:none;padding:2rem;text-align:center;border-top:1px solid var(--border2);}
+.hksucc.show{display:block;}
+.hkmsg{font-family:var(--font2);font-size:32px;font-weight:700;color:var(--green);letter-spacing:3px;margin-bottom:.75rem;animation:hackIn .6s ease both;}
+.hkq{font-size:15px;color:var(--text2);line-height:2;max-width:500px;margin:0 auto 1.3rem;font-style:italic;}
+.hkq span{color:var(--green2);}
+.hkstats{display:flex;justify-content:center;gap:1.5rem;margin-bottom:1.5rem;flex-wrap:wrap;}
+.hkst{text-align:center;background:var(--bg3);border:1px solid var(--border2);padding:.85rem 1.3rem;}
+.hkst .v{font-family:var(--font2);font-size:24px;font-weight:700;}
+.hkst .l{font-size:11px;color:var(--muted);letter-spacing:2px;margin-top:3px;}
+.rnotif{font-size:13px;padding:7px 20px;margin-bottom:1rem;display:none;animation:rankUp .5s ease;border:1px solid;}
+.rnotif.show{display:inline-block;}
+.nbsect{margin-bottom:1.5rem;}
+.nbtitle{font-size:12px;color:var(--amber);letter-spacing:3px;text-transform:uppercase;margin-bottom:.75rem;}
+.nbrow{display:flex;gap:.75rem;flex-wrap:wrap;justify-content:center;}
+.nbitem{background:var(--amber2);border:1px solid var(--amber);padding:.75rem 1rem;text-align:center;animation:badgePop .5s ease both;}
+.nbitem .ni{font-size:28px;display:block;margin-bottom:4px;}
+.nbitem .nn{font-size:12px;color:var(--amber);}
+.fbsave{font-size:12px;color:var(--blue);margin-bottom:1rem;letter-spacing:1px;}
+.btndone{font-family:var(--font);font-size:14px;letter-spacing:3px;background:var(--green3);color:var(--green);border:1px solid var(--green2);padding:15px 48px;cursor:pointer;text-transform:uppercase;clip-path:polygon(10px 0%,100% 0%,calc(100% - 10px) 100%,0% 100%);transition:all .12s;}
+.btndone:hover{background:#005020;}
+
+/* ── REVIEW ── */
+#reviewscreen{max-width:880px;margin:0 auto;width:100%;}
+.rvtopbar{display:flex;align-items:center;gap:1rem;padding:.9rem 2rem;border-bottom:1px solid var(--border2);background:var(--bg2);}
+.rvbadge{background:var(--blue2);border:1px solid var(--blue);color:var(--blue);font-size:11px;padding:4px 12px;letter-spacing:2px;}
+.rvbody{padding:2rem;flex:1;}
+.rvprog{font-size:12px;color:var(--muted);margin-bottom:1.5rem;padding:6px 12px;background:var(--bg2);border:1px solid var(--border);display:flex;justify-content:space-between;}
+.rvqwrap{background:var(--bg2);border:1px solid var(--border2);padding:1.5rem;margin-bottom:1rem;}
+.rvqtype{font-size:11px;letter-spacing:3px;color:var(--blue);margin-bottom:.5rem;text-transform:uppercase;}
+.rvqtext{font-family:var(--font2);font-size:20px;font-weight:600;color:var(--text);line-height:1.4;margin-bottom:1rem;}
+.rvchs{display:grid;gap:8px;}
+.rvch{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:13px 18px;font-family:var(--font);font-size:15px;display:flex;align-items:center;gap:12px;clip-path:polygon(5px 0%,100% 0%,calc(100% - 5px) 100%,0% 100%);}
+.rvch.rvc{border-color:var(--green2)!important;background:#001808!important;color:var(--green)!important;}
+.rvkey{min-width:26px;height:26px;border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted);flex-shrink:0;}
+.rvch.rvc .rvkey{border-color:var(--green2);color:var(--green);}
+.rvexpl{background:var(--bg3);border:1px solid var(--border2);padding:1rem 1.25rem;font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:.75rem;}
+.rvexpl strong{color:var(--text);}
+.rvnav{display:flex;gap:1rem;justify-content:space-between;align-items:center;}
+.rvbtn{font-family:var(--font);font-size:13px;letter-spacing:2px;background:var(--bg3);border:1px solid var(--border2);color:var(--text2);padding:10px 22px;cursor:pointer;transition:all .12s;text-transform:uppercase;}
+.rvbtn:hover{border-color:var(--border3);color:var(--text);}
+.rvbtn.pri{background:var(--green3);border-color:var(--green2);color:var(--green);}
+.rvbtn.pri:hover{background:#004d18;}
+.rvctr{font-size:13px;color:var(--muted);}
+
+/* ── LOSE ── */
+#lose{align-items:center;justify-content:center;padding:2rem;}
+.lininner{display:flex;flex-direction:column;align-items:center;gap:1rem;text-align:center;max-width:500px;}
+.ltitle{font-family:var(--font2);font-size:38px;font-weight:700;color:var(--red);letter-spacing:4px;}
+.lcode{background:var(--bg2);border:1px solid #3a0808;padding:.85rem 1.3rem;font-size:13px;color:var(--red);width:100%;text-align:left;}
+.lmsg{font-size:14px;color:var(--muted);line-height:1.9;}
+.btnretry{font-family:var(--font);font-size:14px;letter-spacing:3px;background:#140005;color:var(--red);border:1px solid var(--red);padding:15px 42px;cursor:pointer;text-transform:uppercase;transition:all .12s;margin-top:.75rem;}
+.btnretry:hover{background:#1f0008;}
+.btnsec{font-family:var(--font);font-size:12px;background:none;border:1px solid var(--border2);color:var(--muted);padding:10px 26px;cursor:pointer;letter-spacing:2px;transition:all .12s;}
+.btnsec:hover{border-color:var(--border3);color:var(--text2);}
+
+/* ── TEACHER PANEL ── */
+#teacherpanel{overflow-y:auto;}
+.tp-topbar{display:flex;align-items:center;justify-content:space-between;padding:.9rem 2rem;border-bottom:1px solid var(--amber);background:var(--bg2);position:sticky;top:0;z-index:10;}
+.tp-logo{font-family:var(--font2);font-size:20px;font-weight:700;color:var(--amber);letter-spacing:3px;}
+.tp-user{font-size:12px;color:var(--amber);border:1px solid var(--amber);padding:4px 12px;}
+.tp-body{padding:2rem;max-width:1100px;margin:0 auto;}
+.tp-title{font-family:var(--font2);font-size:26px;font-weight:700;color:var(--amber);letter-spacing:3px;margin-bottom:.5rem;}
+.tp-sub{font-size:13px;color:var(--text2);margin-bottom:2rem;}
+.tp-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;margin-bottom:2rem;}
+.tps{background:var(--bg2);border:1px solid var(--border2);padding:1rem;text-align:center;}
+.tps-v{font-family:var(--font2);font-size:28px;font-weight:700;}
+.tps-l{font-size:11px;color:var(--muted);letter-spacing:2px;margin-top:3px;text-transform:uppercase;}
+.tp-section{background:var(--bg2);border:1px solid var(--border2);margin-bottom:1.5rem;}
+.tp-sh{background:var(--border2);padding:.6rem 1.3rem;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);}
+.tp-sh span{color:var(--amber);}
+.tp-sb{padding:1.25rem 1.5rem;}
+.student-row{display:grid;grid-template-columns:1.5fr 60px 60px 80px 80px 80px auto;gap:.75rem;align-items:center;padding:.6rem 0;border-bottom:1px solid var(--border);font-size:13px;}
+.student-row:last-child{border-bottom:none;}
+.student-row.hdr{color:var(--muted);font-size:11px;letter-spacing:1px;text-transform:uppercase;padding-bottom:.5rem;}
+.sname{color:var(--text);}
+.sxp{color:var(--amber);text-align:center;}
+.sdone{color:var(--green2);text-align:center;}
+.srnk{font-size:11px;text-align:center;}
+.sstr{color:var(--blue);text-align:center;}
+.slast{color:var(--muted);font-size:11px;text-align:center;}
+.sreset{font-family:var(--font);font-size:11px;background:none;border:1px solid #3a0808;color:var(--red);padding:3px 9px;cursor:pointer;transition:all .12s;white-space:nowrap;}
+.sreset:hover{background:var(--red2);}
+.tp-notif{background:var(--bg3);border:1px solid var(--green3);padding:.75rem 1.25rem;font-size:13px;color:var(--green);margin-bottom:1rem;display:none;}
+.tp-notif.show{display:block;}
+.tp-action-row{display:flex;gap:.75rem;flex-wrap:wrap;}
+.tp-btn{font-family:var(--font);font-size:12px;letter-spacing:2px;background:var(--bg3);color:var(--amber);border:1px solid var(--amber);padding:9px 18px;cursor:pointer;transition:all .12s;text-transform:uppercase;}
+.tp-btn:hover{background:var(--amber2);}
+.tp-btn.danger{color:var(--red);border-color:var(--red);}
+.tp-btn.danger:hover{background:var(--red2);}
+.tp-loading{font-size:13px;color:var(--muted);padding:.75rem 0;}
+
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border2)}
+</style>
+</head>
+<body>
+
+<div id="tc"></div>
+<div class="scanline"></div>
+<canvas id="mx"></canvas>
+<div id="hboot"><canvas id="bcanvas"></canvas><div class="bc-center"><div class="bc-logo">HACKER</div><div class="bc-sub">ACCESO CONCEDIDO</div></div><div class="blog" id="blog"></div></div>
+<div id="lov"><div class="lspin"></div><div class="ltxt">CONECTANDO...</div></div>
+
+<!-- ══ LOGIN SELECTOR ══ -->
+<div class="screen active" id="login-select">
+<div class="ls-wrap">
+  <div class="ls-logo">HACKER</div>
+  <div class="ls-ver">CPPQuest v13.0 — Black IA <span style="animation:blink 1s step-end infinite;display:inline-block">_</span></div>
+  <div class="ls-title">// Selecciona tu rol</div>
+  <div class="ls-options">
+    <div class="ls-card" id="goto-student">
+      <span class="ls-card-ic">🎓</span>
+      <div class="ls-card-name" style="color:var(--blue)">Alumno</div>
+      <div class="ls-card-sub">Accede con tu cuenta<br>@student.blackai.com</div>
+    </div>
+    <div class="ls-card teacher" id="goto-teacher">
+      <span class="ls-card-ic">👨‍💻</span>
+      <div class="ls-card-name" style="color:var(--amber)">Maestro</div>
+      <div class="ls-card-sub">Accede con tu cuenta<br>@master.blackai.com</div>
+    </div>
+  </div>
+  <div class="fbconn" id="fbconn">// verificando conexión...</div>
+</div>
+</div>
+
+<!-- ══ LOGIN ALUMNO ══ -->
+<div class="screen" id="login-student">
+<div class="lf-wrap">
+  <button class="lf-back" id="back-to-select-s">◄ Volver</button>
+  <div class="lf-logo student">ALUMNO</div>
+  <div class="lf-role">CPPQuest // Black IA</div>
+  <div class="lf-box student">
+    <div class="lf-hdr student">// <span>ACCESO DE ALUMNO</span></div>
+    <div class="lff"><label class="lfl">Correo (@student.blackai.com)</label><input class="lfi student" id="s-email" type="email" autocomplete="off" spellcheck="false" placeholder="nombre@student.blackai.com"/></div>
+    <div class="lff"><label class="lfl">Contraseña</label><input class="lfi student" id="s-pass" type="password" maxlength="50" autocomplete="off"/>
+      <div class="lerr" id="s-err">// ERROR: Correo o contraseña incorrectos.</div>
+      <div class="lstat" id="s-stat">// Iniciando sesión...</div>
+    </div>
+    <button class="btnlogin student" id="btn-student-login">ENTRAR AL SISTEMA</button>
+    <div class="lhint">Usa tu correo <span>@student.blackai.com</span> y contraseña asignados por tu maestro.</div>
+  </div>
+</div>
+</div>
+
+<!-- ══ LOGIN MAESTRO ══ -->
+<div class="screen" id="login-teacher">
+<div class="lf-wrap">
+  <button class="lf-back" id="back-to-select-t">◄ Volver</button>
+  <div class="lf-logo teacher">MAESTRO</div>
+  <div class="lf-role">CPPQuest // Panel Docente</div>
+  <div class="lf-box teacher">
+    <div class="lf-hdr teacher">// <span>ACCESO DE MAESTRO</span></div>
+    <div class="lff"><label class="lfl">Correo (@master.blackai.com)</label><input class="lfi teacher" id="t-email" type="email" autocomplete="off" spellcheck="false" placeholder="nombre@master.blackai.com"/></div>
+    <div class="lff"><label class="lfl">Contraseña</label><input class="lfi teacher" id="t-pass" type="password" maxlength="50" autocomplete="off"/>
+      <div class="lerr" id="t-err">// ERROR: Correo o contraseña incorrectos.</div>
+      <div class="lstat" id="t-stat">// Iniciando sesión...</div>
+    </div>
+    <button class="btnlogin teacher" id="btn-teacher-login">ACCEDER AL PANEL</button>
+    <div class="lhint">Usa tu correo <span>@master.blackai.com</span> institucional.</div>
+  </div>
+</div>
+</div>
+
+<!-- ══ MAP ══ -->
+<div class="screen" id="mapscreen">
+<div class="topbar">
+  <div class="tbl">
+    <div class="tblogo" id="tblogo">CPP<span>Quest</span></div>
+    <div class="tbuser" id="tbuser">--</div>
+    <div class="tbrank" id="tbrank">NEWBIE</div>
+    <div class="sdot" id="sdot"></div>
+  </div>
+  <div style="display:flex;gap:.75rem;align-items:center;">
+    <div class="hud"><span class="lbl">XP&nbsp;</span><span class="val" id="xpd">0</span></div>
+    <div class="hud"><span class="lbl">RACHA&nbsp;</span><span class="val" id="strd">0🔥</span></div>
+    <div class="hud"><div class="hw" id="hm"></div></div>
+    <button class="btnbg" id="btnbg">🏅 LOGROS</button>
+    <button class="btnlo" id="btnlo">SALIR</button>
+  </div>
+</div>
+<div class="mapbody">
+  <div class="swarn" id="swarn">⚠ Tu racha está en riesgo. ¡Juega hoy!</div>
+  <div class="xpbox">
+    <div class="xpbl"><span id="rnklbl">NEWBIE</span><span id="xplbl">0 / 100 XP</span></div>
+    <div class="xpbt"><div class="xpbf" id="xpbar" style="width:0%"></div></div>
+    <div class="rnxtl" id="rnxt">> siguiente rango: SCRIPT KIDDIE</div>
+  </div>
+  <div class="chtag">NIVEL 01 — FUNDAMENTOS DE C++</div>
+  <div class="chcard" style="border-left-color:var(--green2)"><h3>Introducción a C++</h3><p>// cout · cin · operadores · tipos de variables · arreglos · ciclos · condicionales</p></div>
+  <div class="lg" id="lg1"></div>
+  <div class="chtag" style="margin-top:1.5rem">NIVEL 02 — CONTROL DE FLUJO</div>
+  <div class="chcard" style="border-left-color:var(--blue)"><h3>Condicionales y Bucles</h3><p>// if · else-if · switch · for · while · do-while</p></div>
+  <div class="lg" id="lg2"></div>
+  <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">próximamente</div><div class="sdiv-l"></div></div>
+  <div class="lg" id="lg3"></div>
+</div>
+</div>
+
+<!-- ══ BADGES ══ -->
+<div class="screen" id="badgesscreen">
+<div class="topbar">
+  <div class="tbl"><div class="tblogo" id="bglogo">CPP<span>Quest</span></div><div style="font-size:13px;color:var(--amber);border:1px solid var(--amber);padding:4px 12px;">LOGROS</div></div>
+  <div style="display:flex;gap:.75rem;"><button class="btnsec" id="bgback">← MAPA</button></div>
+</div>
+<div class="bgbody">
+  <div class="bgtitle">🏅 SALA DE LOGROS</div>
+  <div class="bgsub">// Desbloquea badges dominando C++ con Black IA</div>
+  <div class="bgprog"><div><div class="bgpn" id="bpe">0</div><div class="bgl">OBTENIDOS</div></div><div style="width:1px;background:var(--border2);margin:0 .5rem;"></div><div><div class="bgpn" style="color:var(--text3)" id="bpt">0</div><div class="bgl">TOTAL</div></div><div class="bgbw"><div style="font-size:12px;color:var(--muted);letter-spacing:2px;">PROGRESO</div><div class="bgbt"><div class="bgbf" id="bgbf" style="width:0%"></div></div></div></div>
+  <div id="bgcont"></div>
+</div>
+</div>
+
+<!-- ══ LESSON ══ -->
+<div class="screen" id="lesson">
+<div class="ltopbar">
+  <button class="btnback" id="btnback">◄ MAP</button>
+  <div class="pw"><div class="pf" id="pf" style="width:0%"></div></div>
+  <div class="ptxt" id="pt">1/5</div>
+  <div class="lbar" id="hl"></div>
+</div>
+<div class="tbar"><div class="tf" id="tfill" style="width:100%"></div></div>
+<div class="lbody" id="lb"></div>
+<div class="fb" id="fb"></div>
+<div class="lfooter">
+  <button class="btnv" id="bv" disabled>[ VERIFICAR ]</button>
+  <button class="btnc" id="bc">[ CONTINUAR ] ►</button>
+</div>
+</div>
+
+<!-- ══ REVIEW ══ -->
+<div class="screen" id="reviewscreen">
+<div class="rvtopbar">
+  <button class="btnback" id="rvback">◄ MAP</button>
+  <div class="rvbadge">// MODO REVISIÓN</div>
+  <div style="font-size:13px;color:var(--muted)" id="rvname"></div>
+</div>
+<div class="rvbody">
+  <div class="rvprog" id="rvprog"><span id="rvptxt">Pregunta 1 de 5</span><span id="rvstxt"></span></div>
+  <div id="rvcontent"></div>
+  <div class="rvnav">
+    <button class="rvbtn" id="rvprev">◄ Anterior</button>
+    <span class="rvctr" id="rvctr">1 / 5</span>
+    <button class="rvbtn pri" id="rvnext">Siguiente ►</button>
+  </div>
+</div>
+</div>
+
+<!-- ══ HACK COMPLETE ══ -->
+<div class="screen" id="hackscreen">
+<div class="hkterm">
+  <div class="hktbar"><span>root@target:~#</span><span id="hkstatus">CONNECTING...</span></div>
+  <div class="hkbody" id="hkbody"></div>
+  <div class="hksucc" id="hksucc">
+    <div class="rnotif" id="rnotif">⬆ RANGO DESBLOQUEADO</div>
+    <div class="nbsect" id="nbsect" style="display:none"><div class="nbtitle">🏅 NUEVOS LOGROS</div><div class="nbrow" id="nbrow"></div></div>
+    <div class="hkmsg" id="hkmsg">ACCESS GRANTED</div>
+    <div class="hkq" id="hkq"></div>
+    <div class="hkstats">
+      <div class="hkst"><div class="v" id="hxp" style="color:var(--amber)">+0</div><div class="l">XP</div></div>
+      <div class="hkst"><div class="v" id="hacc" style="color:var(--green)">0%</div><div class="l">PRECISIÓN</div></div>
+      <div class="hkst"><div class="v" id="hstr" style="color:var(--blue)">0🔥</div><div class="l">RACHA</div></div>
+    </div>
+    <div class="fbsave" id="fbsave">// guardando...</div>
+    <button class="btndone" id="btndone">► VOLVER AL MAPA</button>
+  </div>
+</div>
+</div>
+
+<!-- ══ LOSE ══ -->
+<div class="screen" id="lose">
+<div class="lininner">
+  <div class="ltitle">GAME OVER</div>
+  <div class="lcode">Error: segmentation fault (core dumped)<br>Signal: SIGKILL · Lives: 0</div>
+  <div class="lmsg">Los hackers de verdad no se rinden.<br><span style="color:var(--green2)">Reinicia.</span></div>
+  <button class="btnretry" id="btnretry">[ REINICIAR ]</button>
+  <button class="btnsec" id="btnlosemap" style="margin-top:.5rem">[&nbsp;mapa&nbsp;]</button>
+</div>
+</div>
+
+<!-- ══ TEACHER PANEL ══ -->
+<div class="screen" id="teacherpanel">
+<div class="tp-topbar">
+  <div class="tp-logo">CPPQuest — PANEL DOCENTE</div>
+  <div style="display:flex;align-items:center;gap:1rem;">
+    <div class="tp-user" id="tp-user">--</div>
+    <button class="btnlo" id="tp-logout">SALIR</button>
+  </div>
+</div>
+<div class="tp-body">
+  <div class="tp-title">PANEL DE ADMINISTRACIÓN</div>
+  <div class="tp-sub">// Black IA · CPPQuest v13.0 · Materia: Hacking/C++</div>
+  <div class="tp-notif" id="tp-notif"></div>
+  <div class="tp-stats">
+    <div class="tps"><div class="tps-v" id="tp-total" style="color:var(--blue)">0</div><div class="tps-l">Alumnos</div></div>
+    <div class="tps"><div class="tps-v" id="tp-active" style="color:var(--green)">0</div><div class="tps-l">Con progreso</div></div>
+    <div class="tps"><div class="tps-v" id="tp-avgxp" style="color:var(--amber)">0</div><div class="tps-l">XP Promedio</div></div>
+    <div class="tps"><div class="tps-v" id="tp-done" style="color:var(--purple)">0</div><div class="tps-l">Lecciones</div></div>
+  </div>
+  <div class="tp-section">
+    <div class="tp-sh">// <span>PROGRESO DE ALUMNOS</span></div>
+    <div class="tp-sb">
+      <div class="student-row hdr">
+        <div>Nombre / Email</div><div style="text-align:center">XP</div><div style="text-align:center">Lecc.</div><div style="text-align:center">Rango</div><div style="text-align:center">Racha</div><div style="text-align:center">Última sesión</div><div>Acción</div>
+      </div>
+      <div id="tp-students-table"><div class="tp-loading">// Cargando datos...</div></div>
+    </div>
+  </div>
+  <div class="tp-section">
+    <div class="tp-sh">// <span>ACCIONES GLOBALES</span></div>
+    <div class="tp-sb">
+      <div class="tp-action-row">
+        <button class="tp-btn" id="tp-refresh">↺ ACTUALIZAR</button>
+        <button class="tp-btn danger" id="tp-reset-all">⚠ RESETEAR TODO</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══ FIREBASE SDK ══ -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script>
+/* ══════════════════════════════════════
+   FIREBASE CONFIG
+══════════════════════════════════════ */
+firebase.initializeApp({
+  apiKey:"AIzaSyDemoKeyReemplazarConTuKey",
+  authDomain:"foro-ee8a5.firebaseapp.com",
+  databaseURL:"https://foro-ee8a5-default-rtdb.firebaseio.com",
+  projectId:"foro-ee8a5",
+  storageBucket:"foro-ee8a5.appspot.com",
+  messagingSenderId:"123456789",
+  appId:"1:123456789:web:abc123"
+});
+const auth=firebase.auth();
+const db=firebase.database();
+
+/* EMAIL MAP — matrícula por email de alumno */
+const EMAIL_MAP={
+  'america@student.blackai.com':'262016420',
+  'tadeo@student.blackai.com':'263046700',
+  'natali@student.blackai.com':'262116190',
+  'melany@student.blackai.com':'262116208',
+  'martha@student.blackai.com':'261065103',
+  'brandon@student.blackai.com':'263036573',
+  'lesly@student.blackai.com':'262126256',
+  'ivan@student.blackai.com':'263046697',
+  'angie@student.blackai.com':'262016326'
+};
+const STUDENT_NAMES={
+  '262016420':'CASTRO ROSAS AMERICA',
+  '263046700':'GARCIA CASAS EVANY TADEO',
+  '262116190':'GODINEZ REYES PAOLA NATALI',
+  '262116208':'GUERRERO GARCIA KARLA MELANY',
+  '261065103':'LOPEZ MARTINEZ MARTHA REBECA',
+  '263036573':'PEREZ FLORES BRANDON GAEL',
+  '262126256':'SALAZAR CARDENAS LESLY VALERIA',
+  '263046697':'SANCHEZ AVILA IVAN EDAHI',
+  '262016326':'VELEZ SANCHEZ ANGIE DANIELA'
+};
+
+/* ══════ CONSTANTES ══════ */
+const RANKS=[{n:'NEWBIE',min:0,c:'#6aaa6a'},{n:'SCRIPT KIDDIE',min:100,c:'#41ffcc'},{n:'HACKER',min:250,c:'#f0b73a'},{n:'ELITE',min:500,c:'#bf7fff'},{n:'ZERO-DAY',min:900,c:'#ff3333'}];
+const ML=5,TS=30;
+
+/* ══════ BADGES ══════ */
+const BADGES=[
+  {id:'first',ico:'🚀',name:'Primer Hack',desc:'Completa tu primera lección.',cat:'Progreso',chk:s=>s.done&&s.done.length>=1},
+  {id:'lvl1',ico:'💡',name:'Nivel 1 Completo',desc:'Completa las 10 lecciones del Nivel 1.',cat:'Progreso',chk:s=>s.done&&s.done.length>=10},
+  {id:'half',ico:'🎯',name:'Medio Camino',desc:'Completa 5 lecciones.',cat:'Progreso',chk:s=>s.done&&s.done.length>=5},
+  {id:'perfect',ico:'✨',name:'Puntería Perfecta',desc:'Termina una lección sin errores.',cat:'Precisión',chk:(s,m)=>m&&m.perfect},
+  {id:'fast',ico:'⏱️',name:'Velocidad Máxima',desc:'Responde rápido en promedio.',cat:'Precisión',chk:(s,m)=>m&&m.fast},
+  {id:'streak3',ico:'🔥',name:'En Llamas',desc:'Mantén racha de 3 días.',cat:'Racha',chk:s=>s.streak>=3},
+  {id:'streak7',ico:'🌋',name:'Semana Hacker',desc:'Mantén racha de 7 días.',cat:'Racha',chk:s=>s.streak>=7},
+  {id:'xp50',ico:'💰',name:'Acumulando',desc:'Obtén 50 XP.',cat:'XP',chk:s=>s.xp>=50},
+  {id:'xp200',ico:'💎',name:'Inversor',desc:'Obtén 200 XP.',cat:'XP',chk:s=>s.xp>=200},
+  {id:'xp500',ico:'👑',name:'Elite XP',desc:'Obtén 500 XP.',cat:'XP',chk:s=>s.xp>=500},
+  {id:'rsk',ico:'🕵️',name:'Script Kiddie',desc:'Alcanza rango Script Kiddie.',cat:'Rango',chk:s=>s.xp>=100},
+  {id:'rhk',ico:'💻',name:'Hacker',desc:'Alcanza rango Hacker.',cat:'Rango',chk:s=>s.xp>=250},
+  {id:'night',ico:'🦉',name:'Búho Nocturno',desc:'Completa lección después de las 10pm.',cat:'Especial',chk:(s,m)=>m&&m.night},
+  {id:'retry',ico:'🔄',name:'Persistente',desc:'Reintenta después de perder.',cat:'Especial',chk:(s,m)=>m&&m.retry},
+  {id:'cout_master',ico:'📺',name:'Maestro del cout',desc:'Completa la lección de cout.',cat:'Especial',chk:s=>s.done&&s.done.includes('l1')},
+  {id:'cin_master',ico:'⌨️',name:'Maestro del cin',desc:'Completa la lección de cin.',cat:'Especial',chk:s=>s.done&&s.done.includes('l2')},
+  {id:'arrays_master',ico:'📊',name:'Maestro de Arreglos',desc:'Completa la lección de arreglos.',cat:'Especial',chk:s=>s.done&&s.done.includes('l6')},
+];
+const CAT_ORDER=['Progreso','Precisión','Racha','XP','Rango','Especial'];
+
+/* ══════ 10 LECCIONES COMPLETAS ══════ */
+const LESSONS=[
+
+  /* ─── L1: cout ─── */
+  {id:'l1',name:'cout',icon:'📺',xp:20,qs:[
+    {t:'mc',qt:'Selección múltiple',q:'¿Cuál es la sintaxis correcta para imprimir "Hola" en C++?',
+     opts:['print("Hola");','cout << "Hola";','Console.Write("Hola");','echo "Hola";'],ans:1,
+     expl:'<strong>cout</strong> (character output) imprime en pantalla usando el operador <strong>&lt;&lt;</strong>.',
+     detail:'cout pertenece al namespace std de &lt;iostream&gt;. Puedes encadenar: cout &lt;&lt; "a" &lt;&lt; " b";'},
+    {t:'mc',qt:'Selección múltiple',q:'¿Qué librería se necesita para usar cout?',
+     code:'<span class="kw">#include</span> <span class="st">???</span>',
+     opts:['&lt;stdio.h&gt;','&lt;cstdlib&gt;','&lt;iostream&gt;','&lt;output&gt;'],ans:2,
+     expl:'<strong>&lt;iostream&gt;</strong> contiene cout, cin y cerr.',
+     detail:'iostream = input/output stream. Es la librería estándar de E/S de C++ moderno.'},
+    {t:'mc',qt:'Selección múltiple',q:'¿Qué imprime este código?',
+     code:'cout << <span class="st">"C++"</span>;\ncout << <span class="st">" es genial"</span>;',
+     opts:['"C++"  "es genial"','C++ es genial','C++\nes genial','Error de compilación'],ans:1,
+     expl:'cout imprime sin espacio automático. Las dos instrucciones producen <strong>C++ es genial</strong>.',
+     detail:'Para nueva línea usa endl o \\n: cout &lt;&lt; "texto" &lt;&lt; endl;'},
+    {t:'bug',qt:'Caza el bug 🐛',q:'¿Cuál línea tiene el error de sintaxis?',
+     bugCode:'<span class="nu">1</span>  <span class="kw">#include</span> <span class="st">&lt;iostream&gt;</span>\n<span class="nu">2</span>  <span class="kw">using namespace</span> std\n<span class="nu">3</span>  <span class="kw">int</span> <span class="fn">main</span>() {\n<span class="nu">4</span>    cout &lt;&lt; <span class="st">"Hola"</span>;\n<span class="nu">5</span>    <span class="kw">return</span> <span class="nu">0</span>;\n<span class="nu">6</span>  }',
+     opts:['Línea 1: falta &lt;&gt;','Línea 2: falta ; al final','Línea 4: cout incorrecto','Línea 5: return inválido'],bugAns:1,
+     expl:'Línea 2 falta el punto y coma: <strong>using namespace std;</strong>',
+     detail:'El ; es obligatorio después de cada sentencia en C++.'},
+    {t:'code',qt:'Desafío 💻',q:'Imprime exactamente: <span style="color:var(--green)">Soy un hacker</span>',
+     starter:'#include <iostream>\nusing namespace std;\nint main() {\n  // usa cout\n  return 0;\n}',
+     expected:'Soy un hacker',hint:'cout << "Soy un hacker";',
+     expl:'<strong>cout &lt;&lt; "Soy un hacker";</strong>',
+     detail:'Las comillas dobles delimitan el string literal. El ; termina la sentencia.'}
+  ]},
+
+  /* ─── L2: cin ─── */
+  {id:'l2',name:'cin',icon:'⌨️',xp:20,qs:[
+    {t:'mc',qt:'Selección múltiple',q:'¿Qué operador usa cin para recibir datos?',
+     opts:['<<','>>',':=','->'],ans:1,
+     expl:'<strong>cin</strong> usa el operador <strong>&gt;&gt;</strong> (extracción) para leer datos del teclado.',
+     detail:'cout usa << (inserción). cin usa >> (extracción). La dirección indica el flujo de datos.'},
+    {t:'mc',qt:'Selección múltiple',q:'¿Qué hace este código?',
+     code:'<span class="kw">int</span> edad;\ncin &gt;&gt; edad;',
+     opts:['Imprime la edad','Lee un número entero del teclado','Declara la variable como string','Error de compilación'],ans:1,
+     expl:'cin &gt;&gt; edad lee un entero del teclado y lo guarda en la variable <strong>edad</strong>.',
+     detail:'La variable debe estar declarada antes de usarla con cin.'},
+    {t:'mc',qt:'Selección múltiple',q:'¿Cuál es el orden correcto para pedir un dato al usuario?',
+     opts:['cin primero, luego cout','cout primero (mensaje), luego cin (lectura)','Son lo mismo','No importa el orden'],ans:1,
+     expl:'Primero imprime el mensaje con cout, luego lee con cin: <strong>cout &lt;&lt; "Ingresa tu edad: "; cin &gt;&gt; edad;</strong>',
+     detail:'El usuario necesita saber qué debe ingresar. El cout le explica, el cin recoge la respuesta.'},
+    {t:'drag',qt:'Arrastra el código 🖱️',q:'Construye un programa que pida e imprima un número',
+     slots:[{id:'s1',answer:'int n;'},{id:'s2',answer:'cout << "Ingresa un numero: ";'},{id:'s3',answer:'cin >> n;'},{id:'s4',answer:'cout << n;'}],
+     chips:['cin >> n;','cout << "Ingresa un numero: ";','int n;','cout << n;','n >> cin;','cin << n;'],
+     expl:'Primero declara la variable, muestra el mensaje, lee con cin, e imprime con cout.',
+     detail:'Este patrón (declare → prompt → cin → cout) es el más básico de interacción con el usuario.'},
+    {t:'code',qt:'Desafío 💻',q:'Simula que el usuario ingresó 42. Imprime: <span style="color:var(--green)">42</span>',
+     starter:'#include <iostream>\nusing namespace std;\nint main() {\n  int numero = 42; // simula cin\n  // imprime numero\n  return 0;\n}',
+     expected:'42',hint:'cout << numero;',
+     expl:'<strong>cout &lt;&lt; numero;</strong> imprime el valor de la variable.',
+     detail:'En un programa real usarías cin >> numero; para leer del teclado.'}
+  ]},
+
+  /* ─── L3: Operadores matemáticos ─── */
+  {id:'l3',name:'Operadores',icon:'➕',xp:25,qs:[
+    {t:'mc',qt:'Selección múltiple',q:'¿Cuál es el resultado de 10 % 3 en C++?',
+     opts:['3','1','0','3.33'],ans:1,
+     expl:'El operador <strong>%</strong> devuelve el residuo. 10 ÷ 3 = 3 con residuo <strong>1</strong>.',
+     detail:'% (módulo) es útil para: par/impar (n%2==0), ciclos circulares, divisibilidad.'},
+    {t:'mc',qt:'Selección múltiple',q:'¿Qué imprime este código?',
+     code:'<span class="kw">int</span> a = <span class="nu">10</span>, b = <span class="nu">3</span>;\ncout &lt;&lt; a / b;',
+     opts:['3.33','3','4','3.0'],ans:1,
+     expl:'En C++, la división de dos <strong>int</strong> es entera. 10/3 = <strong>3</strong> (descarta decimales).',
+     detail:'Para decimales usa double: double a=10.0, b=3.0; cout << a/b; → 3.33333'},
+    {t:'mc',qt:'Selección múltiple',q:'¿Cuál es el resultado de este cálculo?',
+     code:'<span class="kw">int</span> x = <span class="nu">4</span>, y = <span class="nu">2</span>;\ncout &lt;&lt; x * y + <span class="nu">1</span>;',
+     opts:['12','9','7','10'],ans:1,
+     expl:'4 * 2 = 8, luego 8 + 1 = <strong>9</strong>. Multiplicación tiene prioridad sobre suma.',
+     detail:'Precedencia: * / % antes que + -. Usa paréntesis para controlar el orden.'},
+    {t:'bug',qt:'Caza el bug 🐛',q:'Este código quiere mostrar 7.5 pero falla. ¿Por qué?',
+     bugCode:'<span class="nu">1</span>  <span class="kw">int</span> a = <span class="nu">15</span>, b = <span class="nu">2</span>;\n<span class="nu">2</span>  cout &lt;&lt; a / b;',
+     opts:['a y b son variables incorrectas','División entera de int da 7, no 7.5','cout no puede mostrar decimales','El operador / no existe en C++'],bugAns:1,
+     expl:'15/2 con int da <strong>7</strong> (división entera). Para 7.5 usa <strong>double a=15.0, b=2.0;</strong>',
+     detail:'La división entera trunca los decimales. Cambia el tipo de dato a double o float.'},
+    {t:'code',qt:'Desafío 💻',q:'Calcula e imprime el área (base 6 × altura 4). Salida: <span style="color:var(--green)">24</span>',
+     starter:'#include <iostream>\nusing namespace std;\nint main() {\n  int base = 6;\n  int altura = 4;\n  // calcula e imprime area\n  return 0;\n}',
+     expected:'24',hint:'cout << base * altura;',
+     expl:'<strong>cout &lt;&lt; base * altura;</strong> calcula e imprime el área directamente.',
+     detail:'También puedes guardarlo: int area = base * altura; cout << area;'}
+  ]},
+
+  /* ─── L4: Tipos de variables ─── */
+  {id:'l4',name:'Tipos de vars',icon:'🔢',xp:25,qs:[
+    {t:'mc',qt:'Selección múltiple',q:'¿Qué tipo de dato almacena números decimales con alta precisión?',
+     opts:['int','bool','double','char'],ans:2,
+     expl:'<strong>double</strong> almacena decimales de 64 bits (~15 dígitos de precisión).',
+     detail:'int = entero. double = decimal. char = un carácter. bool = true/false. string = texto.'},
+    {t:'mc',qt:'Selección múltiple',q:'¿Cuál es el rango aproximado de un int en C++?',
+     opts:['0 a 100','0 a 1,000','±32,767','±2,147,483,647'],ans:3,
+     expl:'Un int de 32 bits va de -2,147,483,648 a 2,147,483,647 (±2.1 mil millones).',
+     detail:'Para números mayores usa long long. Para positivos únicamente: unsigned int.'},
+    {t:'mc',qt:'Selección múltiple',q:'¿Qué tipo declaras para almacenar true o false?',
+     code:'<span class="ty">???</span> activo = <span class="kw">true</span>;',
+     opts:['int','bool','string','char'],ans:1,
+     expl:'<strong>bool</strong> almacena valores booleanos: true (1) o false (0).',
+     detail:'bool es fundamental para condiciones: if (activo) {...}'},
+    {t:'drag',qt:'Arrastra el código 🖱️',q:'Empareja cada variable con su tipo correcto',
+     slots:[{id:'s1',answer:'int edad = 20;'},{id:'s2',answer:'double precio = 9.99;'},{id:'s3',answer:'char letra = \'A\';'},{id:'s4',answer:'bool activo = true;'},{id:'s5',answer:'string nombre = "Ana";'}],
+     chips:['string nombre = "Ana";','bool activo = true;','int edad = 20;','double precio = 9.99;','char letra = \'A\';','float pi = 3.14;'],
+     expl:'Cada tipo tiene un propósito: int=entero, double=decimal, char=carácter, bool=lógico, string=texto.',
+     detail:'Elegir el tipo correcto es crucial para eficiencia y correctitud del programa.'},
+    {t:'code',qt:'Desafío 💻',q:'Declara una variable double "pi" con valor 3.14 e imprímela. Salida: <span style="color:var(--green)">3.14</span>',
+     starter:'#include <iostream>\nusing namespace std;\nint main() {\n  // double pi = 3.14\n  // imprime pi\n  return 0;\n}',
+     expected:'3.14',hint:'double pi = 3.14; cout << pi;',
+     expl:'<strong>double pi = 3.14; cout &lt;&lt; pi;</strong>',
+     detail:'double puede representar 3.14 con precisión. int no (descartaría los decimales).'}
+  ]},
+
+  /* ─── L5: Variables definidas (constantes) ─── */
+  {id:'l5',name:'Constantes',icon:'📌',xp:25,qs:[
+    {t:'mc',qt:'Selección múltiple',q:'¿Cuál es la forma correcta de declarar una constante en C++?',
+     opts:['const int MAX = 100;','constant int MAX = 100;','final int MAX = 100;','int MAX = 100 const;'],ans:0,
+     expl:'La palabra clave <strong>const</strong> va antes del tipo: <strong>const int MAX = 100;</strong>',
+     detail:'Una constante no puede cambiar su valor después de declararse. El compilador lo previene.'},
+    {t:'mc',qt:'Selección múltiple',q:'¿Qué sucede si intentas modificar una constante?',
+     code:'<span class="kw">const int</span> PI_INT = <span class="nu">3</span>;\nPI_INT = <span class="nu">4</span>; <span class="co">// ← esta línea</span>',
+     opts:['El valor cambia a 4','Error de compilación','Warning pero compila','Depende del compilador'],ans:1,
+     expl:'El compilador genera un <strong>error</strong>. Las constantes no pueden reasignarse.',
+     detail:'Usa const para valores que nunca deben cambiar: PI, MAX_SIZE, velocidad de la luz, etc.'},
+    {t:'mc',qt:'Selección múltiple',q:'¿Cuál es la ventaja principal de usar const en lugar de un número literal?',
+     opts:['Es más rápido','Da nombre al valor, es más legible y mantenible','Ocupa menos memoria','El compilador lo optimiza automáticamente'],ans:1,
+     expl:'Usar nombres descriptivos (<strong>MAX_ALUMNOS</strong>) es más legible que números mágicos (30).',
+     detail:'Si cambia el valor, solo lo modificas en un lugar. Sin const, tendrías que buscar todos los 30 en el código.'},
+    {t:'drag',qt:'Arrastra el código 🖱️',q:'Construye un programa que usa una constante para calcular',
+     slots:[{id:'s1',answer:'const double PI = 3.14159;'},{id:'s2',answer:'double radio = 5.0;'},{id:'s3',answer:'double area = PI * radio * radio;'},{id:'s4',answer:'cout << area;'}],
+     chips:['const double PI = 3.14159;','double radio = 5.0;','double area = PI * radio * radio;','cout << area;','PI = 3.0;','double PI = 3;'],
+     expl:'La constante PI no puede cambiar. radio y area son variables normales que sí pueden variar.',
+     detail:'Fórmula del área del círculo: π × r². Con radio=5: 3.14159 × 25 ≈ 78.54.'},
+    {t:'code',qt:'Desafío 💻',q:'Declara const int MAX=10 e imprime MAX*2. Salida: <span style="color:var(--green)">20</span>',
+     starter:'#include <iostream>\nusing namespace std;\nint main() {\n  // const int MAX = 10\n  // imprime MAX * 2\n  return 0;\n}',
+     expected:'20',hint:'const int MAX = 10; cout << MAX * 2;',
+     expl:'<strong>const int MAX = 10; cout &lt;&lt; MAX * 2;</strong> imprime 20.',
+     detail:'Puedes usar la constante en expresiones pero no reasignarla.'}
+  ]},
+
+  /* ─── L6: Arreglos (arrays) ─── */
+  {id:'l6',name:'Arreglos',icon:'📊',xp:30,qs:[
+    {t:'mc',qt:'Selección múltiple',q:'¿Cuál es la declaración correcta de un arreglo de 3 strings?',
+     opts:['array string[3] = {"A","B","C"};','string nombres[3] = {"Ana","Luis","Eva"};','string[3] nombres;','string nombres = {"Ana","Luis","Eva"};'],ans:1,
+     expl:'Sintaxis: <strong>tipo nombre[tamaño] = {valores};</strong> → string nombres[3] = {"Ana","Luis","Eva"};',
+     detail:'El tamaño entre corchetes define cuántos elementos puede tener. Los índices van de 0 a size-1.'},
+    {t:'mc',qt:'Selección múltiple',q:'¿Qué imprime este código?',
+     code:'<span class="kw">int</span> nums[<span class="nu">3</span>] = {<span class="nu">10</span>, <span class="nu">20</span>, <span class="nu">30</span>};\ncout &lt;&lt; nums[<span class="nu">1</span>];',
+     opts:['10','20','30','1'],ans:1,
+     expl:'nums[1] es el <strong>segundo</strong> elemento (índice 1 = posición 2). Imprime <strong>20</strong>.',
+     detail:'Los arreglos en C++ son 0-indexed: nums[0]=10, nums[1]=20, nums[2]=30.'},
+    {t:'mc',qt:'Selección múltiple',q:'¿Qué tipo de dato almacena este arreglo?',
+     code:'<span class="ty">string</span> students[<span class="nu">3</span>] = {<span class="st">"Luisa"</span>, <span class="st">"Marcos"</span>, <span class="st">"Juan"</span>};',
+     opts:['int','char','string','double'],ans:2,
+     expl:'El tipo es <strong>string</strong>. Almacena 3 cadenas de texto.',
+     detail:'Puedes tener arreglos de cualquier tipo: int[], double[], string[], bool[], char[].'},
+    {t:'drag',qt:'Arrastra el código 🖱️',q:'Construye el programa que declara e imprime un arreglo de 3 notas',
+     slots:[{id:'s1',answer:'int notas[3] = {90, 85, 78};'},{id:'s2',answer:'cout << notas[0];'},{id:'s3',answer:'cout << notas[1];'},{id:'s4',answer:'cout << notas[2];'}],
+     chips:['int notas[3] = {90, 85, 78};','cout << notas[0];','cout << notas[1];','cout << notas[2];','cout << notas[3];','int notas = {90,85,78};'],
+     expl:'Declara el arreglo y accede a cada elemento por su índice.',
+     detail:'notas[3] daría acceso fuera del arreglo (índices válidos: 0, 1, 2). Es un error común.'},
+    {t:'code',qt:'Desafío 💻',q:'Declara int nums[3]={5,10,15} e imprime nums[2]. Salida: <span style="color:var(--green)">15</span>',
+     starter:'#include <iostream>\nusing namespace std;\nint main() {\n  // int nums[3] = {5, 10, 15}\n  // imprime el tercer elemento\n  return 0;\n}',
+     expected:'15',hint:'int nums[3]={5,10,15}; cout<<nums[2];',
+     expl:'nums[2] es el tercer elemento (índice 2) → <strong>15</strong>.',
+     detail:'El índice [2] accede al tercer elemento porque los índices empiezan en 0.'}
+  ]},
+
+  /* ─── L7: Variables y operaciones ─── */
+  {id:'l7',name:'Vars & Ops',icon:'🔣',xp:25,qs:[
+    {t:'mc',qt:'Selección múltiple',q:'¿Qué hace el operador ++ en C++?',
+     code:'<span class="kw">int</span> x = <span class="nu">5</span>;\nx++;\ncout &lt;&lt; x;',
+     opts:['Imprime 5','Imprime 6','Error de compilación','Imprime 55'],ans:1,
+     expl:'<strong>x++</strong> incrementa x en 1. Equivale a x = x + 1. Imprime <strong>6</strong>.',
+     detail:'x++ (post-incremento) y ++x (pre-incremento) tienen diferencia sutil en expresiones.'},
+    {t:'mc',qt:'Selección múltiple',q:'¿Qué significa x += 5?',
+     opts:['x es igual a 5','x se compara con 5','x = x + 5','x se incrementa 5 veces'],ans:2,
+     expl:'<strong>x += 5</strong> es equivalente a <strong>x = x + 5</strong>. Es una asignación compuesta.',
+     detail:'También existen -=, *=, /=, %= con la misma lógica.'},
+    {t:'mc',qt:'Selección múltiple',q:'¿Cuál es el resultado de este código?',
+     code:'<span class="kw">int</span> a = <span class="nu">10</span>;\na -= <span class="nu">3</span>;\na *= <span class="nu">2</span>;\ncout &lt;&lt; a;',
+     opts:['14','13','20','7'],ans:0,
+     expl:'a=10, a-=3 → a=7, a*=2 → a=<strong>14</strong>.',
+     detail:'Las operaciones se ejecutan en orden. a-=3 da 7, luego 7*2=14.'},
+    {t:'drag',qt:'Arrastra el código 🖱️',q:'Construye un programa que intercambia dos variables',
+     slots:[{id:'s1',answer:'int a = 5, b = 10;'},{id:'s2',answer:'int temp = a;'},{id:'s3',answer:'a = b;'},{id:'s4',answer:'b = temp;'},{id:'s5',answer:'cout << a << b;'}],
+     chips:['int a = 5, b = 10;','int temp = a;','a = b;','b = temp;','cout << a << b;','a = temp = b;'],
+     expl:'Para intercambiar valores se necesita una variable temporal que guarde uno mientras se sobreescribe.',
+     detail:'Sin temp, al hacer a=b perdemos el valor original de a y no podemos recuperarlo.'},
+    {t:'code',qt:'Desafío 💻',q:'Declara a=15, b=7, suma ambos e imprime. Salida: <span style="color:var(--green)">22</span>',
+     starter:'#include <iostream>\nusing namespace std;\nint main() {\n  int a = 15;\n  int b = 7;\n  // suma e imprime\n  return 0;\n}',
+     expected:'22',hint:'cout << a + b;',
+     expl:'<strong>cout &lt;&lt; a + b;</strong> imprime 15+7=22.',
+     detail:'Puedes imprimir la expresión directamente sin guardar el resultado en otra variable.'}
+  ]},
+
+  /* ─── L8: Ciclo for ─── */
+  {id:'l8',name:'Ciclo for',icon:'🔄',xp:35,qs:[
+    {t:'mc',qt:'Selección múltiple',q:'¿Cuántas veces imprime "hola" este bucle?',
+     code:'<span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i &lt; <span class="nu">5</span>; i++) {\n  cout &lt;&lt; <span class="st">"hola"</span>;\n}',
+     opts:['4 veces','5 veces','6 veces','Indefinidamente'],ans:1,
+     expl:'i va de 0 a 4 (i < 5): <strong>5 iteraciones</strong>. 0, 1, 2, 3, 4.',
+     detail:'El for termina cuando i llega a 5. La condición i<5 ya no se cumple.'},
+    {t:'mc',qt:'Selección múltiple',q:'¿Qué parte del for controla cuándo termina el bucle?',
+     code:'<span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i &lt; <span class="nu">10</span>; i++) { }',
+     opts:['int i = 0','i < 10','i++','Las llaves {}'],ans:1,
+     expl:'<strong>i < 10</strong> es la condición. El bucle se ejecuta mientras sea true.',
+     detail:'init=int i=0, condición=i<10, incremento=i++. Solo la condición decide cuándo parar.'},
+    {t:'mc',qt:'Selección múltiple',q:'¿Qué imprime este for?',
+     code:'<span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">1</span>; i &lt;= <span class="nu">3</span>; i++) {\n  cout &lt;&lt; i;\n}',
+     opts:['012','123','1 2 3','0123'],ans:1,
+     expl:'i va de 1 a 3 (i <= 3): imprime 1, 2, 3 → <strong>123</strong>.',
+     detail:'Si usara i<3 imprimiría solo 12. i<=3 incluye el 3.'},
+    {t:'drag',qt:'Arrastra el código 🖱️',q:'Construye un for que imprime la suma de 1 a 5',
+     slots:[{id:'s1',answer:'int suma = 0;'},{id:'s2',answer:'for (int i = 1; i <= 5; i++) {'},{id:'s3',answer:'  suma += i;'},{id:'s4',answer:'}'},{id:'s5',answer:'cout << suma;'}],
+     chips:['int suma = 0;','for (int i = 1; i <= 5; i++) {','  suma += i;','}','cout << suma;','suma = i;','for (i = 0; i < 5)'],
+     expl:'El acumulador suma+=i va sumando 1+2+3+4+5=15.',
+     detail:'Patrón acumulador: inicializa en 0, suma en cada iteración, imprime al final.'},
+    {t:'code',qt:'Desafío 💻',q:'Imprime números pares de 1 a 10 con for. Salida: <span style="color:var(--green)">246810</span>',
+     starter:'#include <iostream>\nusing namespace std;\nint main() {\n  for (int i = 1; i <= 10; i++) {\n    // si i es par, imprime i\n  }\n  return 0;\n}',
+     expected:'246810',hint:'if (i % 2 == 0) cout << i;',
+     expl:'<strong>if (i % 2 == 0) cout &lt;&lt; i;</strong> dentro del for.',
+     detail:'i%2==0 verifica si i es par. Combinar for+if es patrón muy común.'}
+  ]},
+
+  /* ─── L9: Condicionales if / else ─── */
+  {id:'l9',name:'if / else',icon:'🔀',xp:35,qs:[
+    {t:'mc',qt:'Selección múltiple',q:'¿Cuál es la sintaxis correcta de un if en C++?',
+     opts:['if x > 0 {}','if (x > 0) {}','if [x > 0] {}','if x > 0:'],ans:1,
+     expl:'En C++ la condición del if va siempre entre <strong>paréntesis</strong>.',
+     detail:'A diferencia de Python, C++ requiere paréntesis. El cuerpo va entre {} si hay más de una instrucción.'},
+    {t:'mc',qt:'Selección múltiple',q:'¿Qué imprime este código si x = 3?',
+     code:'<span class="kw">int</span> x = <span class="nu">3</span>;\n<span class="kw">if</span> (x > <span class="nu">5</span>) {\n  cout &lt;&lt; <span class="st">"grande"</span>;\n} <span class="kw">else</span> {\n  cout &lt;&lt; <span class="st">"chico"</span>;\n}',
+     opts:['grande','chico','grande chico','Nada'],ans:1,
+     expl:'3 > 5 es false → ejecuta else: imprime <strong>"chico"</strong>.',
+     detail:'El else se ejecuta cuando la condición del if es false.'},
+    {t:'mc',qt:'Selección múltiple',q:'¿Cuál es el operador de igualdad en C++?',
+     opts:['=','==','===','equals()'],ans:1,
+     expl:'<strong>==</strong> compara igualdad. <strong>=</strong> es asignación. Son totalmente diferentes.',
+     detail:'Error muy común: usar = en lugar de == en una condición. El compilador a veces advierte, a veces no.'},
+    {t:'bug',qt:'Caza el bug 🐛',q:'Este if-else no compila. ¿Dónde está el error?',
+     bugCode:'<span class="nu">1</span>  <span class="kw">int</span> edad = <span class="nu">20</span>;\n<span class="nu">2</span>  <span class="kw">if</span> edad >= <span class="nu">18</span> {\n<span class="nu">3</span>    cout &lt;&lt; <span class="st">"adulto"</span>;\n<span class="nu">4</span>  } <span class="kw">else</span> {\n<span class="nu">5</span>    cout &lt;&lt; <span class="st">"menor"</span>;\n<span class="nu">6</span>  }',
+     opts:['Línea 1: tipo incorrecto','Línea 2: faltan paréntesis','Línea 3: cout incorrecto','Línea 4: else inválido'],bugAns:1,
+     expl:'Línea 2: falta paréntesis → <strong>if (edad >= 18)</strong>',
+     detail:'C++ requiere paréntesis obligatorios en la condición del if. Python no los necesita, C++ sí.'},
+    {t:'code',qt:'Desafío 💻',q:'Si x=4 es par imprime "par", si es impar "impar". Salida: <span style="color:var(--green)">par</span>',
+     starter:'#include <iostream>\nusing namespace std;\nint main() {\n  int x = 4;\n  if (x % 2 == 0) {\n    // imprime "par"\n  } else {\n    // imprime "impar"\n  }\n  return 0;\n}',
+     expected:'par',hint:'cout << "par"; y cout << "impar";',
+     expl:'x=4, 4%2==0 es true → imprime <strong>"par"</strong>.',
+     detail:'x%2==0 es la forma estándar de verificar paridad en C++.'}
+  ]},
+
+  /* ─── L10: Proyecto Final ─── */
+  {id:'l10',name:'Proyecto Final',icon:'🏆',xp:80,qs:[
+    {t:'mc',qt:'Proyecto Final — Repaso',q:'¿Cuál es la salida de este programa completo?',
+     code:'<span class="kw">int</span> nums[<span class="nu">4</span>] = {<span class="nu">2</span>,<span class="nu">4</span>,<span class="nu">6</span>,<span class="nu">8</span>};\n<span class="kw">int</span> suma = <span class="nu">0</span>;\n<span class="kw">for</span>(<span class="kw">int</span> i=<span class="nu">0</span>; i&lt;<span class="nu">4</span>; i++)\n  suma += nums[i];\ncout &lt;&lt; suma;',
+     opts:['20','24','10','0'],ans:0,
+     expl:'2+4+6+8 = <strong>20</strong>. El for recorre el arreglo acumulando la suma.',
+     detail:'Sumar todos los elementos de un arreglo con for es un patrón fundamental en programación.'},
+    {t:'bug',qt:'Proyecto Final — Bug',q:'Este programa tiene un error lógico. ¿Cuál es?',
+     bugCode:'<span class="nu">1</span>  <span class="kw">int</span> x = <span class="nu">10</span>;\n<span class="nu">2</span>  <span class="kw">if</span> (x = <span class="nu">10</span>) {\n<span class="nu">3</span>    cout &lt;&lt; <span class="st">"diez"</span>;\n<span class="nu">4</span>  }',
+     opts:['Línea 1: tipo incorrecto','Línea 2: usa = en lugar de ==','Línea 3: cout mal','Línea 4: falta else'],bugAns:1,
+     expl:'Línea 2 usa <strong>=</strong> (asignación) en vez de <strong>==</strong> (comparación). El if siempre es true.',
+     detail:'if (x = 10) asigna 10 a x y evalúa 10 como true. Siempre imprime "diez" sin importar el valor original.'},
+    {t:'drag',qt:'Proyecto Final — Arrastre',q:'Construye el programa completo: arreglo + for + if',
+     slots:[{id:'s1',answer:'int notas[5] = {90,85,60,78,95};'},{id:'s2',answer:'for (int i = 0; i < 5; i++) {'},{id:'s3',answer:'  if (notas[i] >= 70) {'},{id:'s4',answer:'    cout << "Aprobado";'},{id:'s5',answer:'  }'},{id:'s6',answer:'}'}],
+     chips:['int notas[5] = {90,85,60,78,95};','for (int i = 0; i < 5; i++) {','  if (notas[i] >= 70) {','    cout << "Aprobado";','  }','}','notas[5] = {90,85};','if notas[i] > 70'],
+     expl:'Recorre el arreglo con for y usa if para verificar cada nota.',
+     detail:'Este patrón (for + if sobre arreglo) es uno de los más usados en programación real.'},
+    {t:'mc',qt:'Proyecto Final — Repaso',q:'¿Cuántas veces imprime "x" este while?',
+     code:'<span class="kw">int</span> n = <span class="nu">5</span>;\n<span class="kw">while</span> (n > <span class="nu">0</span>) {\n  cout &lt;&lt; <span class="st">"x"</span>;\n  n--;\n}',
+     opts:['4 veces','5 veces','6 veces','Infinito'],ans:1,
+     expl:'n va de 5 a 1 (5 iteraciones). Cuando n=0, la condición falla. <strong>5 veces</strong>.',
+     detail:'n-- es equivalente a n = n - 1. Sin esto sería bucle infinito.'},
+    {t:'code',qt:'🏆 PROYECTO FINAL',
+     q:'Programa completo: for del 1 al 5, imprime "i:X" donde X es el número. Salida: <span style="color:var(--green)">i:1i:2i:3i:4i:5</span>',
+     starter:'#include <iostream>\nusing namespace std;\nint main() {\n  for (int i = 1; i <= 5; i++) {\n    // imprime "i:" seguido del numero\n  }\n  return 0;\n}',
+     expected:'i:1i:2i:3i:4i:5',hint:'cout << "i:" << i;',
+     expl:'<strong>cout &lt;&lt; "i:" &lt;&lt; i;</strong> encadena el texto y el número.',
+     detail:'cout puede encadenar múltiples valores con <<. Combina strings y variables libremente.'}
+  ]}
+];
+
+const LOCKED_EXTRA=[{id:'la',n:'Funciones',ic:'🧩',xp:55},{id:'lb',n:'Punteros',ic:'🔗',xp:60},{id:'lc',n:'Estructuras',ic:'🏗️',xp:65},{id:'ld',n:'Quiz Final',ic:'💀',xp:150}];
+const HLINES=['<span class="gg">[SYN]</span> Enviando paquetes al objetivo...','<span class="gg">[*]</span> Escaneando puertos 22, 80, 443...','<span class="aa">[~]</span> Puerto 443 abierto','<span class="gg">[+]</span> Vulnerabilidad identificada','<span class="aa">[~]</span> Preparando exploit...','<span class="rr">[!]</span> IDS activo — evasión','<span class="gg">[+]</span> Bypass exitoso','<span class="gg">[+]</span> Privilegios escalados: root','<span class="bb">[>]</span> Shell activa','<span class="gg">[+]</span> Exfiltrando... ██████████ 100%','<span class="gg">[✓]</span> <span class="gg">MISIÓN COMPLETADA.</span>'];
+const QUOTES=[{m:'ACCESS GRANTED',q:'"El mejor exploit es el conocimiento.<br><span>Acabas de instalar una backdoor en tu cerebro.</span>"'},{m:'ROOT ACCESS',q:'"Un hacker entiende sistemas<br><span>mejor que sus propios creadores.</span>"'},{m:'PAYLOAD EXECUTED',q:'"El código que escribes hoy<br><span>es el arma que usarás mañana.</span>"'},{m:'FIREWALL BYPASSED',q:'"No existe sistema impenetrable.<br><span>Solo hackers que aún no han llegado.</span>"'}];
+
+/* ══ STATE ══ */
+let currentUser=null,isTeacher=false;
+let S={xp:0,streak:0,lastPlay:null,lives:ML,done:[],curL:0,ts:0,badges:[]};
+let qi=0,hits=0,selIdx=null,compOk=false,answered=false,tvIv=null,tLeft=TS;
+let sErr=0,sStart=Date.now(),dragSt={dragging:null,slots:{}};
+let rvLesson=null,rvIdx=0;
+
+/* ══ FIREBASE HELPERS ══ */
+function getHackingPath(uid){return db.ref('hacking/'+uid);}
+function getGradesPath(uid){return db.ref('grades/'+uid+'/hacking');}
+
+async function loadStudentData(uid){
+  try{const snap=await getHackingPath(uid).once('value');return snap.val();}catch(e){return null;}
+}
+async function saveStudentData(uid,data){
+  try{
+    await getHackingPath(uid).set(data);
+    // Also sync to grades path for the gestor
+    const perc=Math.min(100,Math.round((data.xp||0)/5));
+    await getGradesPath(uid).update({
+      parcial1:Math.min(100,Math.round(((data.done||[]).length/10)*100)),
+      score:perc,
+      xp:data.xp||0,
+      lecciones:data.done||[],
+      racha:data.streak||0,
+      ultimaActividad:data.lastPlay||null
+    });
+    setSd('ok');return true;
+  }catch(e){setSd('se');return false;}
+}
+
+function setSd(s){const d=document.getElementById('sdot');if(!d)return;d.className='sdot'+(s==='sy'?' sy':s==='se'?' se':'');}
+
+/* ══ TOAST ══ */
+function toast(ico,ttl,sub,col){const tc=document.getElementById('tc');const t=document.createElement('div');t.className='toast';if(col)t.style.borderColor=col;t.innerHTML=`<div class="t-ico">${ico}</div><div><div class="t-ttl" style="${col?'color:'+col:''}">${ttl}</div><div class="t-sub">${sub}</div></div>`;tc.appendChild(t);setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),400);},3500);}
+
+/* ══ BADGES ══ */
+function getBadge(id){return BADGES.find(b=>b.id===id);}
+function checkNewBadges(prev,s,meta){return BADGES.filter(b=>!prev.includes(b.id)&&(()=>{try{return b.chk(s,meta);}catch(e){return false;}})()).map(b=>b.id);}
+function awardBadges(ids){if(!ids.length)return;S.badges=[...new Set([...(S.badges||[]),...ids])];ids.forEach((id,i)=>{const b=getBadge(id);if(b)setTimeout(()=>toast(b.ico,'¡Logro desbloqueado!',b.name),i*600);});}
+function renderBadges(){
+  const earned=(S.badges||[]).length,total=BADGES.length;
+  document.getElementById('bpe').textContent=earned;document.getElementById('bpt').textContent=total;
+  document.getElementById('bgbf').style.width=Math.round((earned/total)*100)+'%';
+  const cont=document.getElementById('bgcont');cont.innerHTML='';
+  CAT_ORDER.forEach(cat=>{
+    const cb=BADGES.filter(b=>b.cat===cat);
+    const lbl=document.createElement('div');lbl.className='bgcat';lbl.textContent='// '+cat;cont.appendChild(lbl);
+    const grid=document.createElement('div');grid.className='bggrid';grid.style.marginBottom='1.5rem';
+    cb.forEach(b=>{const e=(S.badges||[]).includes(b.id);const c=document.createElement('div');c.className='bgcard '+(e?'earned':'locked-b');c.innerHTML=`${e?'<div class="bget">✓ OBTENIDO</div>':''}<span class="bgi">${b.ico}</span><div class="bgn">${b.name}</div><div class="bgd">${e?b.desc:'???'}</div>`;grid.appendChild(c);});
+    cont.appendChild(grid);
+  });
+}
+
+/* ══ AUDIO ══ */
+let AC=null,ambN=[];
+function gAC(){if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();return AC;}
+function startAmb(){try{const ac=gAC();stopAmb();const mk=(f,t,g,lr,ld)=>{const o=ac.createOscillator(),gn=ac.createGain();o.type=t;o.frequency.value=f;gn.gain.setValueAtTime(0,ac.currentTime);gn.gain.linearRampToValueAtTime(g,ac.currentTime+2.5);if(lr){const l=ac.createOscillator(),lg=ac.createGain();l.frequency.value=lr;lg.gain.value=ld;l.connect(lg);lg.connect(gn.gain);l.start();ambN.push(l,lg);}o.connect(gn);gn.connect(ac.destination);o.start();ambN.push(o,gn);};mk(36,'sine',.09,.12,.02);mk(72,'triangle',.03,.07,.008);}catch(e){}}
+function stopAmb(){try{ambN.forEach(n=>{try{n.stop&&n.stop();n.disconnect&&n.disconnect();}catch(e){}});ambN=[];}catch(e){}}
+function sfx(t){try{const ac=gAC(),ts=ac.currentTime;const sw=(f1,f2,w,d,g,dl=0)=>{const o=ac.createOscillator(),gn=ac.createGain();o.type=w;o.frequency.setValueAtTime(f1,ts+dl);o.frequency.linearRampToValueAtTime(f2,ts+dl+d);gn.gain.setValueAtTime(g,ts+dl);gn.gain.exponentialRampToValueAtTime(.001,ts+dl+d);o.connect(gn);gn.connect(ac.destination);o.start(ts+dl);o.stop(ts+dl+d+.01);};const tn=(f,w,dl,d,g)=>{const o=ac.createOscillator(),gn=ac.createGain();o.type=w;o.frequency.value=f;gn.gain.setValueAtTime(g,ts+dl);gn.gain.exponentialRampToValueAtTime(.001,ts+dl+d);o.connect(gn);gn.connect(ac.destination);o.start(ts+dl);o.stop(ts+dl+d+.01);};
+if(t==='click'){sw(300,150,'sine',.07,.02);}else if(t==='sel'){sw(200,500,'sine',.1,.03);}else if(t==='drop'){sw(400,700,'sine',.1,.04);}else if(t==='correct'){sw(150,700,'sine',.3,.04);tn(1100,'sine',.18,.2,.018);}else if(t==='wrong'){sw(280,35,'sawtooth',.4,.06);}else if(t==='compile'){[0,.07,.14,.21,.28,.35].forEach((dl,i)=>sw([150,250,400,600,450,300][i],[250,400,600,450,300,150][i],'sine',.12,.022,dl));}else if(t==='nav'){sw(100,380,'sine',.14,.03);}else if(t==='win'){sw(100,600,'sine',.5,.05);tn(450,'sine',.12,.35,.04);tn(700,'sine',.28,.3,.03);}else if(t==='badge'){tn(800,'sine',0,.1,.04);tn(1000,'sine',.12,.1,.04);tn(1200,'sine',.24,.15,.04);}else if(t==='glitch'){for(let i=0;i<10;i++)tn(Math.random()*1800+80,'square',i*.025,.02,.018);}else if(t==='timer'){tn(1050,'sine',0,.04,.013);}else if(t==='login'){sw(50,250,'sine',.6,.07);[0,.1,.2,.3,.4,.55,.7].forEach((dl,i)=>tn([100,150,200,300,450,650,950][i],'triangle',dl,.2,.022));}}catch(e){}}
+
+/* ══ BOOT ══ */
+function runBoot(name,cb){
+  const boot=document.getElementById('hboot');const cv=document.getElementById('bcanvas');const ctx=cv.getContext('2d');
+  boot.classList.add('active');cv.width=cv.offsetWidth||800;cv.height=cv.offsetHeight||600;
+  const C='アイ01INTBOOLSTRINGCOUT<>{}();=+-*/&#@!HACKER';const cols=Math.floor(cv.width/14)+1;
+  const drops=Array(cols).fill(0).map(()=>Math.random()*-60);const spds=Array(cols).fill(0).map(()=>Math.random()*.6+.4);
+  const iv=setInterval(()=>{ctx.fillStyle='rgba(0,0,0,.065)';ctx.fillRect(0,0,cv.width,cv.height);drops.forEach((y,i)=>{const b=Math.random()>.96;ctx.fillStyle=b?'#fff':'#00ff41';ctx.font=(b?'bold ':'')+'13px Share Tech Mono,monospace';ctx.fillText(C[Math.floor(Math.random()*C.length)],i*14,y*14);if(y*14>cv.height&&Math.random()>.95)drops[i]=0;drops[i]+=spds[i];});},33);
+  const logs=[`> AUTENTICANDO: ${name}`,'> AUTENTICACIÓN: [OK]','> CARGANDO PERFIL DE FIREBASE...','> MÓDULOS C++ CARGADOS','> BIENVENIDO, OPERADOR.'];
+  const bl=document.getElementById('blog');bl.innerHTML='';logs.forEach((l,i)=>{const d=document.createElement('div');d.className='blog-line';d.textContent=l;bl.appendChild(d);setTimeout(()=>{d.style.opacity='1';sfx('click');},420+i*270);});
+  setTimeout(()=>{clearInterval(iv);ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(0,0,cv.width,cv.height);setTimeout(()=>{boot.classList.remove('active');stopAmb();cb();},700);},2900);
+}
+
+/* ══ RANKS / HUD ══ */
+function getRank(xp){return RANKS.slice().reverse().find(r=>xp>=r.min)||RANKS[0];}
+function getRankNext(xp){const i=RANKS.findIndex(r=>r===getRank(xp));return i<RANKS.length-1?RANKS[i+1]:null;}
+function rndH(id,n){const el=document.getElementById(id);if(!el)return;el.innerHTML='';for(let i=0;i<ML;i++){const h=document.createElement('span');h.className='ht'+(i>=n?' lost':'');h.textContent='❤';el.appendChild(h);}}
+function updHUD(){const xp=S.xp;document.getElementById('xpd').textContent=xp;document.getElementById('strd').textContent=S.streak+'🔥';rndH('hm',S.lives);rndH('hl',S.lives);const r=getRank(xp),nx=getRankNext(xp);const rb=document.getElementById('tbrank');if(rb){rb.textContent=r.n;rb.style.borderColor=r.c;rb.style.color=r.c;}document.getElementById('rnklbl').textContent=r.n;const pct=nx?Math.round(((xp-r.min)/(nx.min-r.min))*100):100;document.getElementById('xpbar').style.width=Math.min(pct,100)+'%';document.getElementById('xplbl').textContent=xp+(nx?' / '+nx.min+' XP':' XP — MAX');document.getElementById('rnxt').textContent=nx?'> siguiente rango: '+nx.n:'> RANGO MÁXIMO';const name=currentUser?.displayName||currentUser?.email?.split('@')[0]||'--';document.getElementById('tbuser').textContent=name;if(S.lastPlay&&S.streak>0){const h=(Date.now()-new Date(S.lastPlay))/(36e5);document.getElementById('swarn').classList.toggle('show',h>20&&h<48);}}
+
+/* ══ AUTH LISTENERS ══ */
+auth.onAuthStateChanged(async(user)=>{
+  const ov=document.getElementById('lov');
+  if(!user){ov.classList.add('hidden');return;}
+  const email=user.email||'';
+  if(email.endsWith('@master.blackai.com')){
+    // Teacher
+    currentUser=user;isTeacher=true;
+    ov.classList.add('hidden');
+    document.getElementById('tp-user').textContent=email.split('@')[0]+'@master';
+    await loadTeacherPanel();
+    goTo('teacherpanel');
+  }else if(email.endsWith('@student.blackai.com')){
+    // Student
+    currentUser=user;isTeacher=false;
+    const mat=EMAIL_MAP[email];
+    if(!mat){auth.signOut();ov.classList.add('hidden');return;}
+    const data=await loadStudentData(user.uid);
+    if(data&&data.xp!==undefined){S=data;if(!S.lives||S.lives>ML)S.lives=ML;if(!S.done)S.done=[];if(!S.badges)S.badges=[];}
+    else{S={xp:0,streak:0,lastPlay:null,lives:ML,done:[],curL:0,ts:0,badges:[]};await saveStudentData(user.uid,S);}
+    ov.classList.add('hidden');
+    const displayName=STUDENT_NAMES[mat]||email.split('@')[0];
+    currentUser.displayName=displayName;
+    const prev=[...(S.badges||[])];awardBadges(checkNewBadges(prev,S,null));
+    buildMap();updHUD();goTo('mapscreen');
+  }else{
+    auth.signOut();ov.classList.add('hidden');
+  }
+});
+
+/* ══ LOGIN STUDENT ══ */
+async function doStudentLogin(){
+  const email=document.getElementById('s-email').value.trim();
+  const pass=document.getElementById('s-pass').value.trim();
+  const errEl=document.getElementById('s-err');const statEl=document.getElementById('s-stat');const btn=document.getElementById('btn-student-login');
+  errEl.classList.remove('show');['s-email','s-pass'].forEach(id=>document.getElementById(id).classList.remove('ei'));
+  if(!email||!pass){errEl.textContent='// ERROR: Completa todos los campos.';errEl.classList.add('show');return;}
+  btn.disabled=true;statEl.textContent='// Iniciando sesión...';statEl.classList.add('show');startAmb();sfx('login');
+  try{
+    await auth.signInWithEmailAndPassword(email,pass);
+    statEl.classList.remove('show');btn.disabled=false;
+    // onAuthStateChanged handles the rest
+    runBoot(email.split('@')[0],()=>{});
+  }catch(e){
+    btn.disabled=false;statEl.classList.remove('show');sfx('wrong');
+    ['s-email','s-pass'].forEach(id=>document.getElementById(id).classList.add('ei'));
+    errEl.textContent='// ERROR: '+getAuthError(e.code);errEl.classList.add('show');
+    document.getElementById('s-pass').style.animation='shake .4s ease';setTimeout(()=>document.getElementById('s-pass').style.animation='',400);
+    stopAmb();
+  }
+}
+
+/* ══ LOGIN TEACHER ══ */
+async function doTeacherLogin(){
+  const email=document.getElementById('t-email').value.trim();
+  const pass=document.getElementById('t-pass').value.trim();
+  const errEl=document.getElementById('t-err');const statEl=document.getElementById('t-stat');const btn=document.getElementById('btn-teacher-login');
+  errEl.classList.remove('show');['t-email','t-pass'].forEach(id=>document.getElementById(id).classList.remove('ei'));
+  if(!email||!pass){errEl.textContent='// ERROR: Completa todos los campos.';errEl.classList.add('show');return;}
+  btn.disabled=true;statEl.textContent='// Verificando credenciales...';statEl.classList.add('show');sfx('login');
+  try{
+    await auth.signInWithEmailAndPassword(email,pass);
+    statEl.classList.remove('show');btn.disabled=false;
+    // onAuthStateChanged handles panel load
+  }catch(e){
+    btn.disabled=false;statEl.classList.remove('show');sfx('wrong');
+    ['t-email','t-pass'].forEach(id=>document.getElementById(id).classList.add('ei'));
+    errEl.textContent='// ERROR: '+getAuthError(e.code);errEl.classList.add('show');
+    document.getElementById('t-pass').style.animation='shake .4s ease';setTimeout(()=>document.getElementById('t-pass').style.animation='',400);
+  }
+}
+
+function getAuthError(code){
+  const map={'auth/user-not-found':'Usuario no encontrado.','auth/wrong-password':'Contraseña incorrecta.','auth/invalid-email':'Correo inválido.','auth/too-many-requests':'Demasiados intentos. Espera un momento.','auth/network-request-failed':'Sin conexión a internet.'};
+  return map[code]||'Verifica tus credenciales.';
+}
+
+function doLogout(){
+  sfx('click');auth.signOut().then(()=>{
+    currentUser=null;isTeacher=false;
+    S={xp:0,streak:0,lastPlay:null,lives:ML,done:[],curL:0,ts:0,badges:[]};
+    ['s-email','s-pass','t-email','t-pass'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    goTo('login-select');
+  });
+}
+
+/* ══ TEACHER PANEL ══ */
+async function loadTeacherPanel(){
+  const tbl=document.getElementById('tp-students-table');
+  tbl.innerHTML='<div class="tp-loading">// Cargando datos de Firebase...</div>';
+  const allEmails=Object.keys(EMAIL_MAP);
+  let allData=[];
+  // Load all students by UID — we need to query /hacking for all users
+  const hackSnap=await db.ref('hacking').once('value');
+  const hackData=hackSnap.val()||{};
+  // Build a uid-to-mat map from /students
+  let uidToMat={};
+  try{const studSnap=await db.ref('students').once('value');const stud=studSnap.val()||{};Object.entries(stud).forEach(([uid,d])=>{if(d.matricula)uidToMat[uid]=d.matricula;if(d.email){const mat=EMAIL_MAP[d.email];if(mat)uidToMat[uid]=mat;}});}catch(e){}
+  // Match hacking entries to student names
+  Object.entries(hackData).forEach(([uid,d])=>{
+    if(!d||typeof d!=='object')return;
+    const mat=uidToMat[uid]||uid;
+    const name=STUDENT_NAMES[mat]||('UID: '+uid.substring(0,8)+'...');
+    allData.push({uid,mat,name,data:d});
+  });
+  // Add students with no data yet
+  const knownUIDs=new Set(allData.map(d=>d.uid));
+  // Stats
+  const active=allData.filter(s=>s.data&&s.data.xp>0).length;
+  const avgXp=allData.length?Math.round(allData.reduce((a,s)=>a+(s.data?.xp||0),0)/allData.length):0;
+  const totalDone=allData.reduce((a,s)=>a+(s.data?.done?.length||0),0);
+  document.getElementById('tp-total').textContent=allData.length||Object.keys(STUDENT_NAMES).length;
+  document.getElementById('tp-active').textContent=active;
+  document.getElementById('tp-avgxp').textContent=avgXp;
+  document.getElementById('tp-done').textContent=totalDone;
+  // Table
+  tbl.innerHTML='';
+  if(!allData.length){tbl.innerHTML='<div class="tp-loading" style="color:var(--muted)">// Sin datos aún. Los alumnos aparecerán cuando inicien sesión.</div>';return;}
+  allData.forEach(({uid,name,data})=>{
+    const xp=data?.xp||0;const done=data?.done?.length||0;const streak=data?.streak||0;
+    const last=data?.lastPlay?new Date(data.lastPlay).toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'Nunca';
+    const r=getRank(xp);
+    const row=document.createElement('div');row.className='student-row';
+    row.innerHTML=`<div class="sname">${name}</div><div class="sxp">${xp}</div><div class="sdone">${done}/10</div><div class="srnk" style="color:${r.c};border-color:${r.c}">${r.n}</div><div class="sstr">${streak}🔥</div><div class="slast">${last}</div><div><button class="sreset" data-uid="${uid}">↺ Reset</button></div>`;
+    tbl.appendChild(row);
+  });
+  tbl.querySelectorAll('.sreset').forEach(btn=>{
+    btn.addEventListener('click',async function(){
+      if(!confirm('¿Resetear el progreso de este alumno?'))return;
+      const uid=this.dataset.uid;
+      try{await db.ref('hacking/'+uid).remove();await db.ref('grades/'+uid+'/hacking').remove();showTpNotif('Progreso reseteado correctamente.');loadTeacherPanel();}catch(e){showTpNotif('Error al resetear: '+e.message);}
+    });
+  });
+}
+function showTpNotif(msg){const el=document.getElementById('tp-notif');el.textContent='// ✓ '+msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),3000);}
+
+/* ══ NAVIGATION ══ */
+function goTo(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if(id==='mapscreen'){buildMap();updHUD();}
+  if(id==='badgesscreen')renderBadges();
+}
+
+/* ══ MAP ══ */
+function buildMap(){
+  ['lg1','lg2','lg3'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='';});
+  // 10 lessons in two groups
+  const L1=LESSONS.slice(0,7); // l1-l7
+  const L2=LESSONS.slice(7);   // l8-l10
+  L1.forEach((l,i)=>{
+    const done=S.done.includes(l.id);
+    const unl=done||(i===0)||S.done.includes(L1[i-1]?.id)||done;
+    const n=document.createElement('div');n.className='ln '+(done?'done':unl?'unlocked':'locked');
+    n.innerHTML=`<div class="ln-ic">${l.icon}</div><div class="ln-nm">${l.name}</div><div class="ln-xp">+${l.xp} XP</div>${done?'<div class="ln-bd" style="color:var(--green2)">✓</div>':(!unl?'<div class="ln-bd" style="color:var(--muted)">🔒</div>':'')}`;
+    if(unl)n.addEventListener('click',()=>{sfx('nav');startLesson(LESSONS.findIndex(x=>x.id===l.id));});
+    if(done){const rv=document.createElement('button');rv.className='ln-rv';rv.textContent='↺';rv.addEventListener('click',e=>{e.stopPropagation();startReview(LESSONS.findIndex(x=>x.id===l.id));});n.appendChild(rv);}
+    document.getElementById('lg1').appendChild(n);
+  });
+  L2.forEach((l,i)=>{
+    const done=S.done.includes(l.id);
+    const prevId=i===0?L1[L1.length-1].id:L2[i-1].id;
+    const unl=done||S.done.includes(prevId);
+    const n=document.createElement('div');n.className='ln '+(done?'done':unl?'unlocked':'locked');
+    n.innerHTML=`<div class="ln-ic">${l.icon}</div><div class="ln-nm">${l.name}</div><div class="ln-xp">+${l.xp} XP</div>${done?'<div class="ln-bd" style="color:var(--blue)">✓</div>':(!unl?'<div class="ln-bd" style="color:var(--muted)">🔒</div>':'')}`;
+    if(unl)n.addEventListener('click',()=>{sfx('nav');startLesson(LESSONS.findIndex(x=>x.id===l.id));});
+    if(done){const rv=document.createElement('button');rv.className='ln-rv';rv.style.borderColor='var(--blue)';rv.textContent='↺';rv.addEventListener('click',e=>{e.stopPropagation();startReview(LESSONS.findIndex(x=>x.id===l.id));});n.appendChild(rv);}
+    document.getElementById('lg2').appendChild(n);
+  });
+  LOCKED_EXTRA.forEach(l=>{const n=document.createElement('div');n.className='ln locked';n.innerHTML=`<div class="ln-ic">${l.ic}</div><div class="ln-nm">${l.n}</div><div class="ln-xp">+${l.xp} XP</div><div class="ln-bd" style="color:var(--muted)">🔒</div>`;document.getElementById('lg3').appendChild(n);});
+}
+
+/* ══ TIMER ══ */
+function startTimer(noT){clearInterval(tvIv);document.getElementById('tfill').style.width='100%';if(noT)return;tLeft=TS;tvIv=setInterval(()=>{tLeft--;document.getElementById('tfill').style.width=((tLeft/TS)*100)+'%';const tn=document.getElementById('tnum');if(tn){tn.textContent=tLeft+'s';tn.className='tnum'+(tLeft<=5?' urg':'');}if(tLeft<=5)sfx('timer');if(tLeft<=0){clearInterval(tvIv);if(!answered)timeOut();}},1000);}
+function timeOut(){answered=true;const q=LESSONS[S.curL].qs[qi];S.lives--;sErr++;if(currentUser&&!isTeacher)saveStudentData(currentUser.uid,S);rndH('hl',S.lives);rndH('hm',S.lives);showFB(false,q,'⏱ Tiempo agotado');if(S.lives<=0)setTimeout(()=>{sfx('glitch');goTo('lose');},1400);}
+
+/* ══ LESSON ══ */
+function startLesson(idx){S.curL=idx;S.lives=ML;qi=0;hits=0;selIdx=null;compOk=false;answered=false;sErr=0;sStart=Date.now();dragSt={dragging:null,slots:{}};if(currentUser&&!isTeacher)saveStudentData(currentUser.uid,S);goTo('lesson');updHUD();renderQ();}
+function retryLesson(){sErr=0;const prev=[...(S.badges||[])];awardBadges(checkNewBadges(prev,S,{retry:true}));startLesson(S.curL);}
+function setV(on){document.getElementById('bv').disabled=!on;}
+
+/* ══ LINE NUMS ══ */
+function updLN(ta){const l=ta.value.split('\n').length;const ln=document.getElementById('lnums');if(!ln)return;ln.innerHTML=Array.from({length:l},(_,i)=>`<span>${i+1}</span>`).join('');}
+const PAIRS={'(':')','{':'}','[':']','"':'"',"'"  :"'"};
+function edKey(e,ta){if(e.key==='Tab'){e.preventDefault();const s=ta.selectionStart;ta.value=ta.value.substring(0,s)+'  '+ta.value.substring(ta.selectionEnd);ta.selectionStart=ta.selectionEnd=s+2;}else if(e.key==='Enter'){e.preventDefault();const s=ta.selectionStart;const bef=ta.value.substring(0,s);const ind=bef.substring(bef.lastIndexOf('\n')+1).match(/^(\s*)/)[1]+(bef.endsWith('{')?'  ':'');const ins='\n'+ind;ta.value=bef+ins+ta.value.substring(s);ta.selectionStart=ta.selectionEnd=s+ins.length;}else if(PAIRS[e.key]){e.preventDefault();const s=ta.selectionStart,en=ta.selectionEnd;if(s!==en){ta.value=ta.value.substring(0,s)+e.key+ta.value.substring(s,en)+PAIRS[e.key]+ta.value.substring(en);ta.selectionStart=s+1;ta.selectionEnd=en+1;}else{ta.value=ta.value.substring(0,s)+e.key+PAIRS[e.key]+ta.value.substring(s);ta.selectionStart=ta.selectionEnd=s+1;}}else if(e.key==='Backspace'){const s=ta.selectionStart;if(s>0&&s===ta.selectionEnd&&PAIRS[ta.value[s-1]]===ta.value[s]){e.preventDefault();ta.value=ta.value.substring(0,s-1)+ta.value.substring(s+1);ta.selectionStart=ta.selectionEnd=s-1;}}updLN(ta);}
+
+/* ══ DRAG ══ */
+function renderDrag(q){dragSt={dragging:null,slots:{}};q.slots.forEach(s=>{dragSt.slots[s.id]={answer:s.answer,filled:null};});const sh=[...q.chips].sort(()=>Math.random()-.5);let html='<div class="cskel">';q.slots.forEach((s,i)=>{html+=`<div class="cline"><span class="lnum-d">${i+1}</span><div class="bslot" id="slot-${s.id}" data-slot="${s.id}"><span class="dph" id="ph-${s.id}">arrastrar...</span></div></div>`;});html+=`</div><div style="font-size:12px;color:var(--muted);letter-spacing:2px;margin-bottom:.6rem;">// BLOQUES</div><div class="bchips" id="chipbank">`;sh.forEach((ch,i)=>{html+=`<div class="dchip" id="chip-${i}" data-chip="${i}" data-val="${ch}" draggable="true">${ch}</div>`;});return html+'</div>';}
+function attachDrag(){document.querySelectorAll('.dchip').forEach(chip=>{chip.addEventListener('dragstart',e=>{if(chip.classList.contains('placed'))return;dragSt.dragging=chip;chip.classList.add('dragging');e.dataTransfer.effectAllowed='move';});chip.addEventListener('dragend',()=>{chip.classList.remove('dragging');dragSt.dragging=null;});chip.addEventListener('click',()=>{if(answered||chip.classList.contains('placed'))return;const fe=Object.keys(dragSt.slots).find(id=>!dragSt.slots[id].filled);if(fe)placeChip(chip,fe);});});document.querySelectorAll('.bslot').forEach(slot=>{slot.addEventListener('dragover',e=>{e.preventDefault();slot.classList.add('dov');});slot.addEventListener('dragleave',()=>slot.classList.remove('dov'));slot.addEventListener('drop',e=>{e.preventDefault();slot.classList.remove('dov');if(dragSt.dragging&&!dragSt.dragging.classList.contains('placed'))placeChip(dragSt.dragging,slot.dataset.slot);});slot.addEventListener('click',()=>{if(answered)return;if(dragSt.slots[slot.dataset.slot].filled)removeSlot(slot.dataset.slot);});});}
+function placeChip(chip,slotId){sfx('drop');if(dragSt.slots[slotId].filled){const oc=document.querySelector(`.dchip[data-chip="${dragSt.slots[slotId].filled}"]`);if(oc)oc.classList.remove('placed');}dragSt.slots[slotId].filled=chip.dataset.chip;chip.classList.add('placed');const slot=document.getElementById('slot-'+slotId);document.getElementById('ph-'+slotId).style.display='none';slot.querySelectorAll('.pchip').forEach(p=>p.remove());const pc=document.createElement('div');pc.className='pchip';pc.textContent=chip.dataset.val;pc.dataset.slotId=slotId;pc.dataset.chipId=chip.dataset.chip;pc.addEventListener('click',()=>{if(!answered)removeSlot(slotId);});slot.appendChild(pc);setV(Object.values(dragSt.slots).every(s=>s.filled!==null));}
+function removeSlot(sid){const st=dragSt.slots[sid];if(!st.filled)return;const oc=document.querySelector(`.dchip[data-chip="${st.filled}"]`);if(oc)oc.classList.remove('placed');st.filled=null;const slot=document.getElementById('slot-'+sid);slot.querySelectorAll('.pchip').forEach(p=>p.remove());document.getElementById('ph-'+sid).style.display='';setV(false);}
+function chkDrag(q){let ok=true;q.slots.forEach(s=>{const v=dragSt.slots[s.id].filled!==null?document.querySelector(`.dchip[data-chip="${dragSt.slots[s.id].filled}"]`)?.dataset.val:'';const c=v===s.answer;if(!c)ok=false;const slot=document.getElementById('slot-'+s.id);slot.querySelectorAll('.pchip').forEach(p=>{p.classList.add('locked');p.style.borderColor=c?'var(--green2)':'var(--red)';p.style.color=c?'var(--green)':'var(--red)';p.style.background=c?'#001808':'var(--red2)';});slot.style.borderColor=c?'var(--green2)':'var(--red)';});document.querySelectorAll('.dchip').forEach(c=>c.style.pointerEvents='none');return ok;}
+
+/* ══ RENDER Q ══ */
+function renderQ(){
+  const q=LESSONS[S.curL].qs[qi];const tot=LESSONS[S.curL].qs.length;
+  answered=false;selIdx=null;compOk=false;dragSt={dragging:null,slots:{}};
+  document.getElementById('pf').style.width=((qi/tot)*100)+'%';document.getElementById('pt').textContent=(qi+1)+'/'+tot;
+  document.getElementById('fb').className='fb';document.getElementById('bv').style.display='';document.getElementById('bc').style.display='none';
+  setV(false);startTimer(q.t==='drag'||q.t==='code');
+  const lb=document.getElementById('lb');lb.style.animation='slideInR .25s ease both';
+  let html=`<div class="qtlbl">${q.qt}</div><div class="qtxt">${q.q}</div>`;
+  if(q.t==='mc'||q.t==='bug')html+=`<div class="kbdhint"><span>// Teclas <strong>1 2 3 4</strong> · <strong>Enter</strong> verificar</span><span class="tnum" id="tnum">${TS}s</span></div>`;
+  if(q.code)html+=`<div class="cdisplay"><div class="cdtag">C++</div><pre>${q.code}</pre></div>`;
+  if(q.t==='mc'){html+='<div class="choices">';['1','2','3','4'].forEach((k,i)=>{html+=`<button class="ch" id="ch-${i}" data-i="${i}"><span class="chk">${k}</span>${q.opts[i]}</button>`;});html+='</div>';}
+  if(q.t==='bug'){html+=`<div class="cdisplay"><div class="cdtag">FIND THE BUG</div><pre>${q.bugCode}</pre></div>`;html+='<div class="bgchs">';['1','2','3','4'].forEach((k,i)=>{html+=`<button class="bgch" id="bg-${i}" data-i="${i}">[${k}]  ${q.opts[i]}</button>`;});html+='</div>';}
+  if(q.t==='drag')html+=renderDrag(q);
+  if(q.t==='code')html+=`<div class="ewrap"><div class="ehdr"><span>EDITOR C++</span><span>Ctrl+Enter=compilar · Tab=indentar</span></div><div class="einner"><div class="lnums" id="lnums"></div><textarea class="ceditor" id="ced" spellcheck="false">${q.starter}</textarea></div></div><button class="cbtn" id="cbtn">&gt; COMPILAR [Ctrl+Enter]</button><div class="cout" id="cout">// Escribe tu código y presiona COMPILAR</div><div class="chint">// Esperado: <strong>${q.expected}</strong> · Tip: <span style="color:var(--text2)">${q.hint}</span></div>`;
+  lb.innerHTML=html;setTimeout(()=>lb.style.animation='',300);
+  if(q.t==='mc'){for(let i=0;i<4;i++){const btn=document.getElementById('ch-'+i);if(btn)btn.addEventListener('click',function(){if(answered)return;selIdx=parseInt(this.dataset.i);document.querySelectorAll('.ch').forEach(b=>b.classList.remove('sel'));this.classList.add('sel');sfx('sel');setV(true);});}}
+  if(q.t==='bug'){for(let i=0;i<4;i++){const btn=document.getElementById('bg-'+i);if(btn)btn.addEventListener('click',function(){if(answered)return;selIdx=parseInt(this.dataset.i);document.querySelectorAll('.bgch').forEach(b=>b.classList.remove('sel'));this.classList.add('sel');sfx('sel');setV(true);});}}
+  if(q.t==='drag')attachDrag();
+  if(q.t==='code'){const ced=document.getElementById('ced');updLN(ced);ced.addEventListener('keydown',e=>{if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();runCompile();return;}edKey(e,ced);});ced.addEventListener('input',()=>updLN(ced));document.getElementById('cbtn').addEventListener('click',runCompile);}
+}
+
+/* ══ COMPILE — parser robusto ══ */
+function runCompile(){
+  if(answered)return;
+  const q=LESSONS[S.curL].qs[qi];
+  const code=document.getElementById('ced').value;
+  const coutEl=document.getElementById('cout');
+  const cb=document.getElementById('cbtn');
+  coutEl.className='cout';coutEl.textContent='// compilando...';
+  cb.classList.add('running');cb.textContent='> COMPILANDO...';sfx('compile');
+  setTimeout(()=>{
+    cb.classList.remove('running');cb.textContent='> COMPILAR [Ctrl+Enter]';
+    const out=simulateCode(code);
+    const exp=q.expected.trim();
+    if(out.trim()===exp){
+      coutEl.className='cout ok';coutEl.textContent=`> [OK]\n> output: ${out}\n\n[PASS] ✓ Correcto!`;
+      sfx('correct');compOk=true;setV(true);
+    }else{
+      coutEl.className='cout fail';coutEl.textContent=`> output: "${out||'(vacío)'}"\n[FAIL] Esperado: "${exp}"\n\nRevisa tu código.`;
+      compOk=false;setV(false);sfx('wrong');
+    }
+  },700);
+}
+
+function simulateCode(code){
+  let out=[];
+  /* Variables */
+  const vars={};
+  // int, double, float, bool, long decl
+  const varDecls=[...code.matchAll(/(?:int|double|float|long|bool)\s+([a-zA-Z_]\w*)(?:\s*\[\d+\])?\s*=\s*([^;]+);/g)];
+  varDecls.forEach(m=>{const val=m[2].trim();vars[m[1].trim()]=isNaN(val)?val.replace(/"/g,'').replace(/'/g,''):parseFloat(val);});
+  // const decl
+  const constDecls=[...code.matchAll(/const\s+(?:int|double|float)\s+([a-zA-Z_]\w*)\s*=\s*([^;]+);/g)];
+  constDecls.forEach(m=>{vars[m[1].trim()]=parseFloat(m[2]);});
+  // string decl
+  const strDecls=[...code.matchAll(/string\s+([a-zA-Z_]\w*)\s*=\s*"([^"]*)";/g)];
+  strDecls.forEach(m=>{vars[m[1].trim()]=m[2];});
+  // arrays
+  const arrDecls=[...code.matchAll(/(?:int|double|string)\s+([a-zA-Z_]\w*)\s*\[\d*\]\s*=\s*\{([^}]*)\}/g)];
+  const arrs={};arrDecls.forEach(m=>{const name=m[1].trim();const items=m[2].split(',').map(x=>x.trim().replace(/"/g,'').replace(/'/g,''));arrs[name]=items;});
+  // assigned with +=, -=, *=
+  const assigns=[...code.matchAll(/([a-zA-Z_]\w*)\s*\+=\s*([^;]+);/g)];
+  assigns.forEach(m=>{const v=m[1].trim();if(vars[v]!==undefined)vars[v]=(parseFloat(vars[v])||0)+(parseFloat(m[2])||0);});
+
+  /* Array access - cout << arr[idx] */
+  const arrAccess=[...code.matchAll(/cout\s*<<\s*([a-zA-Z_]\w*)\s*\[(\d+)\]\s*;/g)];
+  arrAccess.forEach(m=>{const arr=arrs[m[1]];if(arr&&arr[parseInt(m[2])]!==undefined)out.push(arr[parseInt(m[2])]);});
+
+  /* cout << string literal */
+  const strM=[...code.matchAll(/cout\s*<<\s*"([^"]*)"\s*;/g)];
+  strM.forEach(m=>out.push(m[1]));
+
+  /* cout << var */
+  const varP=[...code.matchAll(/cout\s*<<\s*([a-zA-Z_]\w*)\s*;/g)];
+  varP.forEach(m=>{if(vars[m[1]]!==undefined&&!arrAccess.some(a=>a[1]===m[1]))out.push(String(vars[m[1]]));});
+
+  /* cout << expr arithmetic */
+  const addM=[...code.matchAll(/cout\s*<<\s*(\w+)\s*\+\s*(\w+)\s*;/g)];
+  addM.forEach(m=>{const a=vars[m[1]]!==undefined?vars[m[1]]:parseFloat(m[1]);const b=vars[m[2]]!==undefined?vars[m[2]]:parseFloat(m[2]);if(!isNaN(a)&&!isNaN(b))out.push(String(a+b));});
+  const mulM=[...code.matchAll(/cout\s*<<\s*(\w+)\s*\*\s*(\w+)\s*;/g)];
+  mulM.forEach(m=>{const a=vars[m[1]]!==undefined?vars[m[1]]:parseFloat(m[1]);const b=vars[m[2]]!==undefined?vars[m[2]]:parseFloat(m[2]);if(!isNaN(a)&&!isNaN(b))out.push(String(a*b));});
+
+  /* cout << "literal" << var */
+  const chainM=[...code.matchAll(/cout\s*<<\s*"([^"]*)"\s*<<\s*(\w+)\s*;/g)];
+  chainM.forEach(m=>{const val=vars[m[2]]!==undefined?vars[m[2]]:m[2];out.push(m[1]+val);});
+
+  /* for loop with cout << i */
+  if(code.match(/for\s*\(/)&&code.match(/cout\s*<<\s*i/)){
+    const forM=code.match(/for\s*\(\s*int\s+i\s*=\s*(\d+)\s*;\s*i\s*([<>]=?)\s*(\d+)\s*;\s*i\+\+\s*\)/);
+    if(forM){
+      const start=parseInt(forM[1]),cmp=forM[2],lim=parseInt(forM[3]);
+      const ifPar=code.match(/if\s*\(\s*i\s*%\s*2\s*==\s*0\s*\)/);
+      const ifGt=code.match(/if\s*\(\s*i\s*>\s*(\d+)\s*\)/);
+      let res='';
+      for(let i=start;(cmp==='<'?i<lim:cmp==='<='?i<=lim:false)&&Math.abs(i)<1000;i++){
+        if(ifPar&&i%2!==0)continue;
+        if(ifGt&&i<=parseInt(ifGt[1]))continue;
+        // check what cout prints: "i:" << i or just i
+        if(code.match(/cout\s*<<\s*"i:"\s*<<\s*i/))res+='i:'+i;
+        else res+=String(i);
+      }
+      if(!out.length||out.join('')==='')out=[res];
+    }
+  }
+
+  /* for with accumulator suma+=i */
+  if(code.match(/\+=\s*i/)&&code.match(/for\s*\(/)){
+    const forM=code.match(/for\s*\(\s*int\s+i\s*=\s*(\d+)\s*;\s*i\s*([<>]=?)\s*(\d+)\s*;\s*i\+\+\s*\)/);
+    const sumVar=code.match(/([a-zA-Z_]\w*)\s*\+=\s*i/)?.[1];
+    if(forM&&sumVar){const initM=code.match(new RegExp(`int\\s+${sumVar}\\s*=\\s*(\\d+)`));let acc=initM?parseInt(initM[1]):0;let i=parseInt(forM[1]),cmp=forM[2],lim=parseInt(forM[3]);while((cmp==='<'?i<lim:cmp==='<='?i<=lim:false)&&Math.abs(acc)<1e9){acc+=i;i++;}if(!out.length)out.push(String(acc));}
+  }
+
+  /* if x%2 par/impar */
+  if(code.match(/x\s*%\s*2/)&&code.match(/cout/)&&!out.some(o=>o==='par'||o==='impar')){
+    const xM=code.match(/int\s+x\s*=\s*(\d+)/);if(xM){const x=parseInt(xM[1]);const parParts=code.match(/cout\s*<<\s*"par"/);const impParts=code.match(/cout\s*<<\s*"impar"/);if(x%2===0&&parParts&&!out.length)out.push('par');else if(x%2!==0&&impParts&&!out.length)out.push('impar');}
+  }
+
+  /* while with -- */
+  if(code.match(/while\s*\(/)&&code.match(/cout/)&&!out.length){
+    const wM=code.match(/int\s+n\s*=\s*(-?\d+)/);const wC=code.match(/while\s*\(\s*n\s*([><=!]+)\s*(\d+)\s*\)/);const wD=code.match(/n\s*-=\s*(\d+)/)||code.match(/n--/);if(wM&&wC&&wD){let n=parseInt(wM[1]),cmp=wC[1],lim=parseInt(wC[2]);const dec=wD[1]?parseInt(wD[1]):1;while((cmp==='>'?n>lim:cmp==='>='?n>=lim:false)&&Math.abs(n)<10000){n-=dec;}out.push(String(n));}
+  }
+
+  // deduplicate overlapping matches (strM then chainM might double)
+  if(chainM.length&&strM.length){const cm=chainM.map(m=>m[1]);out=out.filter(o=>!cm.includes(o)||true);}
+  // basic dedup on identical pushes from overlapping regexes
+  if(strM.length>0&&addM.length>0){const adds=addM.map(m=>{const a=vars[m[1]]!==undefined?vars[m[1]]:parseFloat(m[1]);const b=vars[m[2]]!==undefined?vars[m[2]]:parseFloat(m[2]);return String(a+b);});out=out.filter(o=>!adds.includes(o)||true);}
+
+  return out.join('');
+}
+
+/* ══ FEEDBACK ══ */
+function showFB(ok,q,title){const fb=document.getElementById('fb');fb.className='fb show '+(ok?'ok-fb':'err-fb');const t=title||(ok?'// Correcto!':'// Incorrecto');fb.innerHTML=`<div class="fbtop"><span style="font-size:19px">${ok?'[+]':'[-]'}</span><span class="fblbl ${ok?'ok':'err'}">${t}</span>${ok?'<span class="fbxp">+4 XP</span>':''}</div><div class="fbexpl">${q.expl}</div><button class="fbmore" id="fbmore">+ explicación detallada</button><div class="fbdet" id="fbdet">${q.detail||''}</div>`;document.getElementById('fbmore').addEventListener('click',function(){const d=document.getElementById('fbdet');d.classList.toggle('open');this.textContent=d.classList.contains('open')?'- ocultar':'+ ver más';});document.getElementById('bv').style.display='none';document.getElementById('bc').style.display='';}
+
+function checkAnswer(){
+  if(answered)return;answered=true;clearInterval(tvIv);
+  const q=LESSONS[S.curL].qs[qi];let ok=false;
+  if(q.t==='mc'){ok=selIdx===q.ans;document.querySelectorAll('.ch').forEach((b,i)=>{b.disabled=true;if(i===q.ans)b.classList.add('correct');else if(i===selIdx&&!ok)b.classList.add('wrong');});}
+  if(q.t==='bug'){ok=selIdx===q.bugAns;document.querySelectorAll('.bgch').forEach((b,i)=>{b.disabled=true;if(i===q.bugAns)b.classList.add('correct');else if(i===selIdx&&!ok)b.classList.add('wrong');});}
+  if(q.t==='drag'){ok=chkDrag(q);}
+  if(q.t==='code'){ok=compOk;}
+  if(ok){hits++;sfx('correct');}else{sfx('wrong');S.lives--;sErr++;if(currentUser&&!isTeacher)saveStudentData(currentUser.uid,S);rndH('hl',S.lives);rndH('hm',S.lives);document.getElementById('hl').style.animation='shake .4s ease';setTimeout(()=>document.getElementById('hl').style.animation='',400);}
+  showFB(ok,q);
+  if(S.lives<=0)setTimeout(()=>{sfx('glitch');goTo('lose');},1400);
+}
+
+function nextQ(){sfx('click');qi++;if(qi>=LESSONS[S.curL].qs.length){finishLesson();return;}const lb=document.getElementById('lb');lb.style.animation='slideOutL .22s ease';setTimeout(()=>{document.getElementById('fb').className='fb';document.getElementById('bv').style.display='';document.getElementById('bc').style.display='none';renderQ();},220);}
+
+/* ══ FINISH ══ */
+async function finishLesson(){
+  const l=LESSONS[S.curL];const earned=l.xp+(hits*4);
+  const prevR=getRank(S.xp);const prev=[...(S.badges||[])];
+  S.xp+=earned;S.streak++;S.lastPlay=new Date().toISOString();S.ts=(S.ts||0)+1;
+  if(!S.done.includes(l.id))S.done.push(l.id);
+  const newR=getRank(S.xp);const rankUp=newR.n!==prevR.n;
+  const elapsed=(Date.now()-sStart)/1000;
+  const meta={perfect:sErr===0,fast:elapsed/l.qs.length<(TS-20),night:new Date().getHours()>=22||new Date().getHours()<4,comeback:sErr>=3,retry:false};
+  const newB=checkNewBadges(prev,S,meta);
+  awardBadges(newB);
+  if(currentUser&&!isTeacher){
+    setSd('sy');
+    await saveStudentData(currentUser.uid,S);
+  }
+  sfx('win');
+  const qd=QUOTES[Math.floor(Math.random()*QUOTES.length)];
+  document.getElementById('hkmsg').textContent=qd.m;document.getElementById('hkq').innerHTML=qd.q;
+  document.getElementById('hxp').textContent='+'+earned;document.getElementById('hacc').textContent=Math.round((hits/l.qs.length)*100)+'%';document.getElementById('hstr').textContent=S.streak+'🔥';
+  document.getElementById('hkstatus').textContent='CONNECTING...';document.getElementById('hkbody').innerHTML='';document.getElementById('hksucc').classList.remove('show');document.getElementById('fbsave').textContent='// guardando...';
+  const rn=document.getElementById('rnotif');rn.classList.remove('show');if(rankUp){rn.textContent='⬆ NUEVO RANGO: '+newR.n;rn.style.color=newR.c;rn.style.borderColor=newR.c;}
+  const nbs=document.getElementById('nbsect');const nbr=document.getElementById('nbrow');
+  if(newB.length){nbs.style.display='';nbr.innerHTML='';newB.forEach((id,i)=>{const b=getBadge(id);if(b){const item=document.createElement('div');item.className='nbitem';item.style.animationDelay=(i*.15)+'s';item.innerHTML=`<span class="ni">${b.ico}</span><div class="nn">${b.name}</div>`;nbr.appendChild(item);sfx('badge');}});}else nbs.style.display='none';
+  goTo('hackscreen');
+  let idx=0;
+  function showLine(){if(idx>=HLINES.length){setTimeout(()=>{document.getElementById('hkstatus').textContent='ROOT ACCESS';document.getElementById('fbsave').textContent='// ✓ Progreso guardado en Firebase';document.getElementById('hksucc').classList.add('show');if(rankUp)rn.classList.add('show');updHUD();},300);return;}const div=document.createElement('div');div.className='hl';div.innerHTML=HLINES[idx];document.getElementById('hkbody').appendChild(div);requestAnimationFrame(()=>div.classList.add('vis'));sfx('click');idx++;setTimeout(showLine,idx<5?165:idx<10?115:72);}
+  setTimeout(showLine,200);
+}
+
+/* ══ REVIEW ══ */
+function startReview(idx){rvLesson=idx;rvIdx=0;document.getElementById('rvname').textContent=LESSONS[idx].name;goTo('reviewscreen');renderReview();}
+function renderReview(){
+  const l=LESSONS[rvLesson];const q=l.qs[rvIdx];const tot=l.qs.length;
+  document.getElementById('rvptxt').textContent=`Pregunta ${rvIdx+1} de ${tot}`;document.getElementById('rvctr').textContent=`${rvIdx+1} / ${tot}`;
+  document.getElementById('rvprev').disabled=rvIdx===0;document.getElementById('rvnext').textContent=rvIdx===tot-1?'Finalizar':'Siguiente ►';
+  let html='';
+  html+=`<div class="rvqwrap"><div class="rvqtype">${q.qt}</div><div class="rvqtext">${q.q}</div>`;
+  if(q.t==='mc'){if(q.code)html+=`<div style="background:var(--bg3);border:1px solid var(--border2);padding:1rem 1.2rem;font-size:13px;line-height:2;margin-bottom:1rem;font-family:var(--font)"><pre style="white-space:pre-wrap">${q.code}</pre></div>`;html+='<div class="rvchs">';['A','B','C','D'].forEach((k,i)=>{const c=i===q.ans;html+=`<div class="rvch ${c?'rvc':''}"><div class="rvkey">${k}</div>${q.opts[i]}${c?' ✓':''}</div>`;});html+='</div>';}
+  if(q.t==='bug'){html+=`<div style="background:var(--bg3);border:1px solid var(--border2);padding:1rem 1.2rem;font-size:13px;line-height:2;margin-bottom:1rem;font-family:var(--font)"><pre style="white-space:pre-wrap">${q.bugCode}</pre></div>`;html+='<div class="rvchs">';['A','B','C','D'].forEach((k,i)=>{const c=i===q.bugAns;html+=`<div class="rvch ${c?'rvc':''}"><div class="rvkey">${k}</div>${q.opts[i]}${c?' ✓':''}</div>`;});html+='</div>';}
+  if(q.t==='drag'){html+=`<div style="font-size:13px;color:var(--text2);margin-bottom:.75rem">// Orden correcto:</div><div style="background:var(--bg3);border:1px solid var(--border2);padding:1rem;font-size:13px;font-family:var(--font)">`;q.slots.forEach((s,i)=>{html+=`<div style="line-height:2.2"><span style="color:var(--muted);font-size:12px">${i+1}&nbsp;&nbsp;</span><span style="color:var(--green2)">${s.answer}</span></div>`;});html+='</div>';}
+  if(q.t==='code'){html+=`<div style="font-size:13px;color:var(--text2);margin-bottom:.5rem">// Salida: <strong style="color:var(--green)">${q.expected}</strong></div><div style="background:var(--bg3);border:1px solid var(--border2);padding:1rem;font-size:13px;font-family:var(--font)"><pre style="white-space:pre-wrap;color:var(--green2)">${q.hint}</pre></div>`;}
+  html+=`</div>`;if(q.expl)html+=`<div class="rvexpl">💡 ${q.expl}${q.detail?`<br><br><span style="color:var(--text3)">${q.detail}</span>`:''}</div>`;
+  document.getElementById('rvcontent').innerHTML=html;
+}
+document.getElementById('rvprev').addEventListener('click',()=>{if(rvIdx>0){rvIdx--;renderReview();}});
+document.getElementById('rvnext').addEventListener('click',()=>{const tot=LESSONS[rvLesson].qs.length;if(rvIdx<tot-1){rvIdx++;renderReview();}else{sfx('nav');goTo('mapscreen');}});
+document.getElementById('rvback').addEventListener('click',()=>{sfx('click');goTo('mapscreen');});
+
+/* ══ KEYBOARD ══ */
+document.addEventListener('keydown',e=>{
+  if(!document.getElementById('lesson').classList.contains('active'))return;
+  const bc=document.getElementById('bc');
+  if(answered){if(e.key==='Enter'&&bc.style.display!=='none'){e.preventDefault();bc.click();}return;}
+  const q=LESSONS[S.curL]&&LESSONS[S.curL].qs[qi];if(!q)return;
+  if((q.t==='code'||q.t==='drag')&&document.activeElement?.id==='ced')return;
+  const map={'1':0,'2':1,'3':2,'4':3};
+  if(e.key in map){e.preventDefault();const i=map[e.key];if(q.t==='mc'){const b=document.getElementById('ch-'+i);if(b&&!b.disabled)b.click();}else if(q.t==='bug'){const b=document.getElementById('bg-'+i);if(b&&!b.disabled)b.click();}}
+  if(e.key==='Enter'){e.preventDefault();const bv=document.getElementById('bv');if(bv&&!bv.disabled)bv.click();}
+});
+
+/* ══ BUTTON WIRING ══ */
+document.getElementById('goto-student').addEventListener('click',()=>{sfx('nav');goTo('login-student');});
+document.getElementById('goto-teacher').addEventListener('click',()=>{sfx('nav');goTo('login-teacher');});
+document.getElementById('back-to-select-s').addEventListener('click',()=>{sfx('click');goTo('login-select');});
+document.getElementById('back-to-select-t').addEventListener('click',()=>{sfx('click');goTo('login-select');});
+document.getElementById('btn-student-login').addEventListener('click',doStudentLogin);
+document.getElementById('btn-teacher-login').addEventListener('click',doTeacherLogin);
+document.getElementById('s-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doStudentLogin();});
+document.getElementById('t-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doTeacherLogin();});
+document.getElementById('btnlo').addEventListener('click',doLogout);
+document.getElementById('tp-logout').addEventListener('click',doLogout);
+document.getElementById('btnback').addEventListener('click',()=>{clearInterval(tvIv);sfx('click');goTo('mapscreen');});
+document.getElementById('bv').addEventListener('click',checkAnswer);
+document.getElementById('bc').addEventListener('click',nextQ);
+document.getElementById('btndone').addEventListener('click',()=>{sfx('nav');goTo('mapscreen');});
+document.getElementById('btnretry').addEventListener('click',()=>{sfx('glitch');retryLesson();});
+document.getElementById('btnlosemap').addEventListener('click',()=>{sfx('click');goTo('mapscreen');});
+document.getElementById('tblogo').addEventListener('click',()=>{sfx('click');goTo('mapscreen');});
+document.getElementById('btnbg').addEventListener('click',()=>{sfx('nav');goTo('badgesscreen');});
+document.getElementById('bgback').addEventListener('click',()=>{sfx('click');goTo('mapscreen');});
+document.getElementById('bglogo').addEventListener('click',()=>{sfx('click');goTo('mapscreen');});
+document.getElementById('tp-refresh').addEventListener('click',()=>{sfx('click');loadTeacherPanel();});
+document.getElementById('tp-reset-all').addEventListener('click',async()=>{
+  if(!confirm('⚠ ¿Resetear el progreso de TODOS los alumnos? Esta acción es irreversible.'))return;
+  try{await db.ref('hacking').remove();await db.ref('grades').remove();showTpNotif('Todo el progreso ha sido reseteado.');loadTeacherPanel();}catch(e){showTpNotif('Error: '+e.message);}
+});
+
+/* ══ FIREBASE STATUS ══ */
+(async()=>{
+  try{
+    const testRef=db.ref('.info/connected');testRef.on('value',snap=>{const el=document.getElementById('fbconn');if(!el)return;if(snap.val()){el.textContent='// ● Firebase conectado';el.className='fbconn on';}else{el.textContent='// ○ Sin conexión';el.className='fbconn off';}});
+  }catch(e){}
+})();
+
+/* ══ MATRIX BG ══ */
+(function(){
+  const cv=document.getElementById('mx'),ctx=cv.getContext('2d');
+  function sz(){cv.width=cv.offsetWidth||900;cv.height=cv.offsetHeight||700;}sz();window.addEventListener('resize',sz);
+  const C='01アウCINTFUNCBOOL<>{}();=+-*/&#@!';const cols=Math.floor(cv.width/18)+1;const drops=Array(cols).fill(1);
+  setInterval(()=>{ctx.fillStyle='rgba(2,8,4,.05)';ctx.fillRect(0,0,cv.width,cv.height);ctx.fillStyle='#00ff41';ctx.font='14px Share Tech Mono,monospace';drops.forEach((y,i)=>{ctx.fillText(C[Math.floor(Math.random()*C.length)],i*18,y*18);if(y*18>cv.height&&Math.random()>.97)drops[i]=0;drops[i]++;});},60);
+})();
+</script>
+</body>
+</html>
