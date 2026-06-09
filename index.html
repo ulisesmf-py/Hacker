@@ -620,13 +620,13 @@ canvas#mx{position:fixed;inset:0;z-index:0;opacity:.05;}
    FIREBASE CONFIG
 ══════════════════════════════════════ */
 firebase.initializeApp({
-  apiKey:"AIzaSyDIucPhIp0gSLPcmCUTYrY7CJx5LYBzCQU",
+  apiKey:"AIzaSyDemoKeyReemplazarConTuKey",
   authDomain:"foro-ee8a5.firebaseapp.com",
   databaseURL:"https://foro-ee8a5-default-rtdb.firebaseio.com",
   projectId:"foro-ee8a5",
-  storageBucket:"foro-ee8a5.firebasestorage.app",
-  messagingSenderId:"548605948271",
-  appId:"1:548605948271:web:6d903b2432429d7a04b89a"
+  storageBucket:"foro-ee8a5.appspot.com",
+  messagingSenderId:"123456789",
+  appId:"1:123456789:web:abc123"
 });
 const auth=firebase.auth();
 const db=firebase.database();
@@ -1049,22 +1049,30 @@ function rndH(id,n){const el=document.getElementById(id);if(!el)return;el.innerH
 function updHUD(){const xp=S.xp;document.getElementById('xpd').textContent=xp;document.getElementById('strd').textContent=S.streak+'🔥';rndH('hm',S.lives);rndH('hl',S.lives);const r=getRank(xp),nx=getRankNext(xp);const rb=document.getElementById('tbrank');if(rb){rb.textContent=r.n;rb.style.borderColor=r.c;rb.style.color=r.c;}document.getElementById('rnklbl').textContent=r.n;const pct=nx?Math.round(((xp-r.min)/(nx.min-r.min))*100):100;document.getElementById('xpbar').style.width=Math.min(pct,100)+'%';document.getElementById('xplbl').textContent=xp+(nx?' / '+nx.min+' XP':' XP — MAX');document.getElementById('rnxt').textContent=nx?'> siguiente rango: '+nx.n:'> RANGO MÁXIMO';const name=currentUser?.displayName||currentUser?.email?.split('@')[0]||'--';document.getElementById('tbuser').textContent=name;if(S.lastPlay&&S.streak>0){const h=(Date.now()-new Date(S.lastPlay))/(36e5);document.getElementById('swarn').classList.toggle('show',h>20&&h<48);}}
 
 /* ══ AUTH LISTENERS ══ */
+let authHandled=false;
 auth.onAuthStateChanged(async(user)=>{
   const ov=document.getElementById('lov');
-  if(!user){ov.classList.add('hidden');return;}
+  if(!user){
+    authHandled=false;
+    ov.classList.add('hidden');
+    // Only go to login-select if we're not already on a login screen
+    const active=document.querySelector('.screen.active');
+    if(active&&!active.id.startsWith('login'))goTo('login-select');
+    return;
+  }
+  if(authHandled)return; // prevent double trigger
+  authHandled=true;
   const email=user.email||'';
   if(email.endsWith('@master.blackai.com')){
-    // Teacher
     currentUser=user;isTeacher=true;
     ov.classList.add('hidden');
     document.getElementById('tp-user').textContent=email.split('@')[0]+'@master';
     await loadTeacherPanel();
     goTo('teacherpanel');
   }else if(email.endsWith('@student.blackai.com')){
-    // Student
     currentUser=user;isTeacher=false;
     const mat=EMAIL_MAP[email];
-    if(!mat){auth.signOut();ov.classList.add('hidden');return;}
+    if(!mat){authHandled=false;auth.signOut();ov.classList.add('hidden');return;}
     const data=await loadStudentData(user.uid);
     if(data&&data.xp!==undefined){S=data;if(!S.lives||S.lives>ML)S.lives=ML;if(!S.done)S.done=[];if(!S.badges)S.badges=[];}
     else{S={xp:0,streak:0,lastPlay:null,lives:ML,done:[],curL:0,ts:0,badges:[]};await saveStudentData(user.uid,S);}
@@ -1072,9 +1080,9 @@ auth.onAuthStateChanged(async(user)=>{
     const displayName=STUDENT_NAMES[mat]||email.split('@')[0];
     currentUser.displayName=displayName;
     const prev=[...(S.badges||[])];awardBadges(checkNewBadges(prev,S,null));
-    buildMap();updHUD();goTo('mapscreen');
+    runBoot(displayName,()=>{buildMap();updHUD();goTo('mapscreen');});
   }else{
-    auth.signOut();ov.classList.add('hidden');
+    authHandled=false;auth.signOut();ov.classList.add('hidden');
   }
 });
 
@@ -1089,8 +1097,7 @@ async function doStudentLogin(){
   try{
     await auth.signInWithEmailAndPassword(email,pass);
     statEl.classList.remove('show');btn.disabled=false;
-    // onAuthStateChanged handles the rest
-    runBoot(email.split('@')[0],()=>{});
+    // onAuthStateChanged handles navigation + boot
   }catch(e){
     btn.disabled=false;statEl.classList.remove('show');sfx('wrong');
     ['s-email','s-pass'].forEach(id=>document.getElementById(id).classList.add('ei'));
@@ -1126,7 +1133,7 @@ function getAuthError(code){
 }
 
 function doLogout(){
-  sfx('click');auth.signOut().then(()=>{
+  sfx('click');authHandled=false;auth.signOut().then(()=>{
     currentUser=null;isTeacher=false;
     S={xp:0,streak:0,lastPlay:null,lives:ML,done:[],curL:0,ts:0,badges:[]};
     ['s-email','s-pass','t-email','t-pass'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
